@@ -1,0 +1,28 @@
+version: '3'
+services:
+  app:
+    build: ./app
+    volumes:
+      - ./app/mintz:/mintz
+      - mintz_stack:/root/.stack
+    environment:
+      PATH: "/root/.local/bin:${PATH}"
+    ports:
+      - 18001:8001
+    container_name: mintz_server
+  db:
+    image: postgres:10
+    ports:
+      - 15432:5432
+    environment:
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/mintz
+    volumes:
+      - mintz_db:/var/lib/postgresql/data/mintz
+      - ./db/initdb.d:/docker-entrypoint-initdb.d
+    container_name: mintz_db
+  redis:
+    image: redis:latest
+volumes:
+  mintz_stack:
+  mintz_db:

@@ -1,0 +1,6 @@
+[submodule "app/mintz/hs-ext-servant"]
+	path = app/mintz/hs-ext-servant
+	url = https://github.com/sozu/hs-ext-servant.git
+[submodule "app/mintz/hs-orm"]
+	path = app/mintz/hs-orm
+	url = https://github.com/sozu/hs-orm.git
