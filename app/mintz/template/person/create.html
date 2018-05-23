@@ -1,0 +1,48 @@
+{-# extends ../common/layout.html #-}
+
+{-@ title -}Person Create{-$-}
+
+{-@ content -}
+<div class="panel panel-default">
+    <div class="panel-heading">
+        Person Information
+    </div>
+    <div class="panel-body">
+        <div class="row">
+            <div class="col-lg-6">
+                <form method="POST" action="/person" role="form">
+                    <div class="form-group">
+                        <label>Name (English)</label>
+                        <div class="form-inline">
+                            <input name="first_name_en" class="form-control" placeholder="First Name">
+                            <input name="middle_name_en" class="form-control" placeholder="Middle Name">
+                            <input name="last_name_en" class="form-control" placeholder="Last Name">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Name (Japanese)</label>
+                        <div class="form-inline">
+                            <input name="first_name_ja" class="form-control" placeholder="First Name">
+                            <input name="middle_name_ja" class="form-control" placeholder="Middle Name">
+                            <input name="last_name_ja" class="form-control" placeholder="Last Name">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Description (English)</label>
+                        <textarea name="description_en" class="form-control" rows="5"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Description (Japanese)</label>
+                        <textarea name="description_ja" class="form-control" rows="5"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Typetalk Name</label>
+                        <input name="typetalk_name" class="form-control" placeholder="Typetalk Name">
+                    </div>
+                    <button type="submit" class="btn btn-default">Submit</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{-$-}

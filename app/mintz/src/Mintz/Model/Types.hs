@@ -1,15 +1,22 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 
 module Mintz.Model.Types where
 
 import GHC.Generics
 import qualified Data.List as L
+import qualified Data.ByteString as B
+import qualified Data.ByteString.UTF8 as U
+import Data.Aeson
 import Data.Convertible
+import Text.Parsec
 import Database.HDBC
 import Database.ORM
 import Mintz.Settings (Database(..))
+
+data LangType = EN | MB deriving (Show, Eq)
 
 data Label = Label { en_label :: String
                    , mb_label :: String
@@ -26,8 +33,8 @@ instance Convertible Label SqlValue where
             esc (c:cs) = c:(esc cs)
 
 instance Convertible SqlValue Label where
-    safeConvert (SqlString x) = do
-        let (en, mb, enr, mbr) = read x :: (String, String, String, String)
+    safeConvert (SqlByteString x) = do
+        let Right (en:mb:enr:mbr:[]) = parse parseTuple "" (U.toString x)
         return $ Label en mb enr mbr
 
 data Lang = Lang { en :: String
@@ -42,9 +49,19 @@ instance Convertible Lang SqlValue where
             esc ('\\':cs) = "\\\\" ++ (esc cs)
             esc (c:cs) = c:(esc cs)
 
+parseTuple :: Parsec String u [String]
+parseTuple = do
+    char '('
+    manyTill (parseOne <* spaces <* optional (char ',') <* spaces) (char ')')
+    where
+        parseOne :: Parsec String u String
+        parseOne = do
+            char '\''
+            manyTill anyChar (char '\'' <* notFollowedBy (char '\''))
+
 instance Convertible SqlValue Lang where
-    safeConvert (SqlString x) = do
-        let (en, mb) = read x :: (String, String)
+    safeConvert (SqlByteString x) = do
+        let Right (en:mb:[]) = parse parseTuple "" (U.toString x)
         return $ Lang en mb
 
 instance TypeMappable Database where
@@ -62,3 +79,15 @@ instance TypeMappable Database where
 --    ON ((c.table_catalog, c.table_schema, c.table_name, 'TABLE', c.dtd_identifier)
 --      = (e.object_catalog, e.object_schema, e.object_name, e.object_type, e.collection_type_identifier))
 --WHERE c.table_name = 'person' ORDER BY c.ordinal_position
+
+data TypeTalk = TypeTalk { name :: String
+                         } deriving (Show, Eq, Generic)
+
+instance FromJSON TypeTalk where
+instance ToJSON TypeTalk where
+
+data Notifications = Notifications { type_talk :: Maybe TypeTalk
+                                   } deriving (Show, Eq, Generic)
+
+instance FromJSON Notifications where
+instance ToJSON Notifications where

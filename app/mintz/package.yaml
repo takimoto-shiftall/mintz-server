@@ -32,11 +32,13 @@ dependencies:
   - utf8-string
   - bytestring
   - http-media
+  - http-api-data
   - servant
   - servant-server
   - wai
   - warp
   - HDBC
+  - aeson
   - lens
   - extensible
   - monad-logger
@@ -45,10 +47,12 @@ dependencies:
   - vault
   - convertible
   - hedis
+  - parsec
   - hs-graph
   - hs-resource
   - hs-orm
   - hs-template
+  - hs-ext-servant
 
 default-extensions:
   - DataKinds
