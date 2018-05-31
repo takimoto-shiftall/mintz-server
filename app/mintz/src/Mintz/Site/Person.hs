@@ -9,6 +9,7 @@ module Mintz.Site.Person where
 
 import GHC.Generics
 import Control.Exception
+import Control.Monad.IO.Class
 import Data.Maybe (maybe)
 import Data.Proxy
 import qualified Data.ByteString.Lazy.UTF8 as UTF8
@@ -47,9 +48,9 @@ data PersonForm = PersonForm { first_name_en :: String
 
 $(validatable [''PersonForm])
 
-[tmpld| PersonCreate template/person/create.html () |]
+[tmpld| PersonCreate template/person/create.html (Maybe PersonForm') |]
 [tmpld| PersonIndex template/person/index.html [Person] |]
-[tmpld| PersonConfirmCreate template/person/create-confirm.html () |]
+[tmpld| PersonConfirmCreate template/person/create-confirm.html PersonForm |]
 
 -- cache_PersonIndex = unsafePerformIO $ newIORef Nothing
 -- cache_PersonCreate = unsafePerformIO $ newIORef Nothing
@@ -58,9 +59,9 @@ type PersonAPI = "person" :>
                ( QueryParam "limit" Int
                     :> QueryParam "offset" Int
                     :> Get '[PersonIndex] [Person]
-            :<|> "form" :> Get '[PersonCreate] ()
+            :<|> "form" :> Get '[PersonCreate] (Maybe PersonForm')
             :<|> "confirm" :> ReqBody '[FormUrlEncoded] PersonForm' :> Post '[HTML] Renderer
-            :<|> ReqBody '[FormUrlEncoded] PersonForm' :> Post '[PersonCreate] ()
+            :<|> ReqBody '[FormUrlEncoded] PersonForm' :> Post '[HTML] Renderer
                )
 
 personAPI sc = index' sc
@@ -78,25 +79,34 @@ index' sc limit offset = do
     return persons
 
 inputCreate' :: SiteContext
-             -> Action ()
-inputCreate' sc = return ()
+             -> Action (Maybe PersonForm')
+inputCreate' sc = return Nothing
 
 confirmCreate' :: SiteContext
                -> PersonForm'
                -> Action Renderer
 confirmCreate' sc form = do
-    f <- maybe (throwIO $ toException err400) return (validate form) 
-    let person = buildPerson f
-    return $ Renderer (Proxy :: Proxy PersonCreate) ()
+    maybe back return $ validate form >>= \f -> do
+        let person = buildPerson f
+        return $ Renderer (Proxy :: Proxy PersonConfirmCreate) f
+    where
+        back :: Action Renderer
+        back = return $ Renderer (Proxy :: Proxy PersonCreate) (Just form)
 
 create' :: SiteContext
         -> PersonForm'
-        -> Action ()
+        -> Action Renderer
 create' sc form = do
-    f <- maybe (throwIO $ toException err400) return (validate form) 
-    (person, _) <- withContext @'[DB] sc $ do
-        createPerson (buildPerson f)
-    return ()
+    case validate form of
+        Nothing -> back
+        Just f -> do
+            (person, _) <- withContext @'[DB] sc $ do
+                createPerson (buildPerson f)
+            return $ Renderer (Proxy :: Proxy PlainText)
+                              (addHeader "/person" () :: Headers '[Header "Location" String] ())
+    where
+        back :: Action Renderer
+        back = return $ Renderer (Proxy :: Proxy PersonCreate) (Just form)
 
 buildPerson :: PersonForm
             -> Person
