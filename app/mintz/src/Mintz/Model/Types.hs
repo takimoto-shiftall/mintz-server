@@ -25,11 +25,12 @@ data Label = Label { en_label :: String
                    } deriving (Show, Read, Eq, Generic)
 
 instance Convertible Label SqlValue where
-    safeConvert (Label {..}) = safeConvert $ "('" ++ L.intercalate "','" (map esc [en_label, mb_label, en_reading, mb_reading]) ++ "')"
+    safeConvert (Label {..}) = safeConvert $ "(\"" ++ L.intercalate "\",\"" (map esc [en_label, mb_label, en_reading, mb_reading]) ++ "\")"
         where
             esc "" = ""
             esc ('\"':cs) = "\\\"" ++ (esc cs)
             esc ('\\':cs) = "\\\\" ++ (esc cs)
+            esc ('\'':cs) = "''" ++ (esc cs)
             esc (c:cs) = c:(esc cs)
 
 instance Convertible SqlValue Label where
@@ -42,22 +43,35 @@ data Lang = Lang { en :: String
                  } deriving (Show, Read, Eq, Generic)
 
 instance Convertible Lang SqlValue where
-    safeConvert (Lang {..}) = safeConvert $ "('" ++ L.intercalate "','" (map esc [en, mb]) ++ "')"
+    safeConvert (Lang {..}) = safeConvert $ "(\"" ++ L.intercalate "\",\"" (map esc [en, mb]) ++ "\")"
         where
             esc "" = ""
             esc ('\"':cs) = "\\\"" ++ (esc cs)
             esc ('\\':cs) = "\\\\" ++ (esc cs)
+            esc ('\'':cs) = "''" ++ (esc cs)
             esc (c:cs) = c:(esc cs)
 
+-- 複合型は、全体を()で囲い、各要素を,で区切った文字列として扱う。
+-- nullは要素を空にする。""は空文字を表すためnullではない。
+-- (),"\を含む場合、""で囲う必要がある。この場合、内部の"と\は\でエスケープする。
 parseTuple :: Parsec String u [String]
 parseTuple = do
-    char '('
-    manyTill (parseOne <* spaces <* optional (char ',') <* spaces) (char ')')
+    char '(' *> sepBy parseOne (char ',') <* char ')'
+    --manyTill (parseOne <* spaces <* optional (char ',') <* spaces) (char ')')
     where
+        withQuote :: Parsec String u Char
+        withQuote = do
+            c <- anyChar
+            if c == '\\' then anyChar else return c
+
         parseOne :: Parsec String u String
-        parseOne = do
-            char '\''
-            manyTill anyChar (char '\'' <* notFollowedBy (char '\''))
+        parseOne = try parseQuoted <|> parseRaw
+
+        parseRaw :: Parsec String u String
+        parseRaw = manyTill anyChar (lookAhead $ try (oneOf ",)"))
+
+        parseQuoted :: Parsec String u String
+        parseQuoted = char '"' *> manyTill withQuote (try $ char '"')
 
 instance Convertible SqlValue Lang where
     safeConvert (SqlByteString x) = do

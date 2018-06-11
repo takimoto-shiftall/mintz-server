@@ -3,7 +3,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Mintz.Site.Person where
 
@@ -49,7 +48,7 @@ data PersonForm = PersonForm { first_name_en :: String
 $(validatable [''PersonForm])
 
 [tmpld| PersonCreate template/person/create.html (Maybe PersonForm') |]
-[tmpld| PersonIndex template/person/index.html [Person] |]
+[tmpl| PersonIndex template/person/index.html [Person] |]
 [tmpld| PersonConfirmCreate template/person/create-confirm.html PersonForm |]
 
 -- cache_PersonIndex = unsafePerformIO $ newIORef Nothing
@@ -61,7 +60,7 @@ type PersonAPI = "person" :>
                     :> Get '[PersonIndex] [Person]
             :<|> "form" :> Get '[PersonCreate] (Maybe PersonForm')
             :<|> "confirm" :> ReqBody '[FormUrlEncoded] PersonForm' :> Post '[HTML] Renderer
-            :<|> ReqBody '[FormUrlEncoded] PersonForm' :> Post '[HTML] Renderer
+            :<|> ReqBody '[FormUrlEncoded] PersonForm' :> Post '[HTML] (Headers '[Header "Location" String] Renderer)
                )
 
 personAPI sc = index' sc
@@ -95,18 +94,17 @@ confirmCreate' sc form = do
 
 create' :: SiteContext
         -> PersonForm'
-        -> Action Renderer
+        -> Action (Headers '[Header "Location" String] Renderer)
 create' sc form = do
     case validate form of
         Nothing -> back
         Just f -> do
             (person, _) <- withContext @'[DB] sc $ do
                 createPerson (buildPerson f)
-            return $ Renderer (Proxy :: Proxy PlainText)
-                              (addHeader "/person" () :: Headers '[Header "Location" String] ())
+            return $ (addHeader "/person") $ EmptyContent
     where
-        back :: Action Renderer
-        back = return $ Renderer (Proxy :: Proxy PersonCreate) (Just form)
+        back :: Action (Headers '[Header "Location" String] Renderer)
+        back = return $ noHeader $ Renderer (Proxy :: Proxy PersonCreate) (Just form)
 
 buildPerson :: PersonForm
             -> Person

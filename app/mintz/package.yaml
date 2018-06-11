@@ -48,6 +48,8 @@ dependencies:
   - convertible
   - hedis
   - parsec
+  - cryptonite
+  - process
   - hs-graph
   - hs-resource
   - hs-orm
@@ -64,9 +66,6 @@ default-extensions:
   - TypeApplications
   - MultiParamTypeClasses
   - ImplicitParams
-
-ghc-options:
-  - -fexternal-interpreter
 
 library:
   source-dirs: src
