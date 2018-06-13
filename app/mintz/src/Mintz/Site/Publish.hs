@@ -26,7 +26,7 @@ import Ext.Servant.Validation
 import Mintz.Service.Publish
 
 data PublishForm = PublishForm { message :: String
-                               , target :: Maybe String
+                               , kind :: String
                                }
 
 $(validatable [''PublishForm])
@@ -42,7 +42,7 @@ publish' sc form = do
     case validate form of
         Nothing -> return ()
         Just f -> do
-            withContext @'[REDIS] sc $ do
-                publishMessage (message f)
+            withContext @'[REDIS, JTALK] sc $ do
+                publishMessage (message f) (kind f)
             return ()
     return NoContent

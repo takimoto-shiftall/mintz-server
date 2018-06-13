@@ -5,12 +5,16 @@ import qualified Codec.Binary.UTF8.String as UTF8
 import Control.Applicative
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
+import Control.Monad.Trans.Maybe
 import Control.Exception.Safe
 import Data.IORef
 import Data.String
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as C8
+import System.Directory
 import System.Process
+import System.Exit
+import System.FilePath (replaceExtension, (</>), (<.>))
 import Crypto.Hash
 import Data.Resource
 
@@ -42,19 +46,33 @@ openJTalkArgs (OpenJTalkContext jt) p =
     , "-r", "0.9"
     , "-b", "0.2"
     , "-fm", "0.4"
-    , "-ow"
-    , outDir jt ++ "/" ++ p ++ ".wav"
+    , "-ow", p
     ]
 
 outputWave :: OpenJTalkContext
            -> String
-           -> IO FilePath
-outputWave c text = do
-    let name = show $ hashWith SHA1 (fromString text :: B.ByteString)
-    (Just inh, _, _, _) <- createProcess $ (proc "open_jtalk" (openJTalkArgs c name)) { std_in = CreatePipe }
-    let text' = B.pack (UTF8.encode text)
-    C8.hPutStrLn inh text'
-    return name
+           -> IO (Maybe FilePath)
+outputWave c@(OpenJTalkContext jt) text = do
+    let name = outDir jt </> (show $ hashWith SHA1 (fromString text :: B.ByteString)) <.> "wav"
+    ec <- withCreateProcess (proc "open_jtalk" (openJTalkArgs c name)) { std_in = CreatePipe } $ \(Just inh) _ _ ph -> do
+        let text' = B.pack (UTF8.encode text)
+        hSetBuffering inh NoBuffering
+        C8.hPutStrLn inh text'
+        waitForProcess ph
+    return $ if ec == ExitSuccess then Just name else Nothing
+
+waveToMP3 :: FilePath
+          -> IO (Maybe FilePath)
+waveToMP3 input = do
+    let output = replaceExtension input "mp3"
+    ec <- withCreateProcess (proc "avconv" ["-y", "-i", input, output]) $ \_ _ _ ph -> do
+        waitForProcess ph
+    return $ if ec == ExitSuccess then Just output else Nothing
+
+outputMP3 :: OpenJTalkContext
+          -> String
+          -> IO (Maybe FilePath)
+outputMP3 c text = runMaybeT $ MaybeT (outputWave c text) >>= (MaybeT . (\p -> waveToMP3 p <* removeFile p))
 
 instance Resource OpenJTalk where
     type ContextType OpenJTalk = OpenJTalkContext

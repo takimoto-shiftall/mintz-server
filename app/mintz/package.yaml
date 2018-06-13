@@ -31,6 +31,8 @@ dependencies:
   - time
   - utf8-string
   - bytestring
+  - filepath
+  - directory
   - http-media
   - http-api-data
   - servant

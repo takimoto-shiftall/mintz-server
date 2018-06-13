@@ -4,6 +4,7 @@
 
 module Mintz.Settings where
 
+import Network.Wai
 import Data.Resource
 import Database.ORM
 import Database.ORM.Dialect.PostgreSQL
