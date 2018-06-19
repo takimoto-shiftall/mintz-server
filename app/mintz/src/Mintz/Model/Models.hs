@@ -34,7 +34,8 @@ mbName :: Person
        -> String
 mbName = flip fullName $ MB
 
-typeTalkName :: Person
-             -> String
+typeTalkName :: (RecordWrapper p, Associate "notifications" String (RW'Type p))
+             => p
+             -> Maybe String
 typeTalkName person = let ns = decode $ C8.pack $ view #notifications (getRecord person) 
-                      in maybe "" name (ns >>= type_talk)
+                      in name <$> (ns >>= type_talk)

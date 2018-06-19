@@ -21,32 +21,42 @@ import Database.ORM.Dialect.PostgreSQL
 import Ext.Servant.Action
 import Ext.Servant.Context
 import Mintz.Settings
-import Mintz.Site.Person
-import Mintz.Site.Publish
+import Mintz.HTTP.Site.Person
+import Mintz.HTTP.API.Publish
+import Mintz.HTTP.API.Person
 import Mintz.Resource.Redis
 import Mintz.Resource.OpenJTalk
+import Mintz.Resource.TypeTalk
 
-type ResourceAPI = (@>) '[DBResource Database, RedisPubSub, OpenJTalk, LoggingResource] SiteKeys
-                    :> ( PersonAPI
-                    :<|> PublishAPI
+type ResourceAPI = (@>) '[DBResource Database, RedisPubSub, OpenJTalk, TypeTalkBot, LoggingResource] SiteKeys
+                    :> ( "site"
+                        :> ( PersonSite
+                           )
+                    :<|> "api"
+                        :> ( PublishAPI
+                        :<|> PersonAPI
+                           )
                        )
 
 type AllAPI = ResourceAPI
          :<|> "public" :> Raw
 
-resourceServer sc = personAPI sc
-               :<|> publishAPI sc
+resourceServer sc = personSite sc
+               :<|> ( publishAPI sc
+                 :<|> personAPI sc
+                    )
 
 main :: IO ()
 main = do
     lr <- newLoggingResource [(anyTag, LevelDebug, LogStdout defaultBufSize, Nothing)] >>= newIORef
     rr <- newIORef $ RedisPubSub (defaultConnectInfo { connectHost = "127.0.0.1", connectPort = PortNumber 6379 })
     tr <- newIORef openJTalk
+    br <- newIORef typeTalk
     dr <- newResource db
 
-    let resources = dr `RCons` rr `RCons` tr `RCons` lr `RCons` RNil
+    let resources = dr `RCons` rr `RCons` tr `RCons` br `RCons` lr `RCons` RNil
 
-    let contextTypes = Proxy :: Proxy '[RequestContextEntry SiteKeys '[DBResource Database, RedisPubSub, OpenJTalk, LoggingResource]]
+    let contextTypes = Proxy :: Proxy '[RequestContextEntry SiteKeys '[DBResource Database, RedisPubSub, OpenJTalk, TypeTalkBot, LoggingResource]]
 
     let rs = hoistServerWithContext (Proxy :: Proxy ResourceAPI)
                                     contextTypes

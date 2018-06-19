@@ -9,6 +9,7 @@ import Control.Monad.Trans.Maybe
 import Control.Exception.Safe
 import Data.IORef
 import Data.String
+import Data.Maybe (maybe)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as C8
 import System.Directory
@@ -18,8 +19,10 @@ import System.FilePath (replaceExtension, (</>), (<.>))
 import Crypto.Hash
 import Data.Resource
 
+defaultVoiceFile = "mei/mei_happy.htsvoice"
+
 data OpenJTalk = OpenJTalk { dictDir :: String
-                           , voiceFile :: String
+                           , voiceDir :: String
                            , outDir :: String
                            }
 
@@ -36,12 +39,13 @@ data OpenJTalkContext = OpenJTalkContext OpenJTalk
 
 openJTalkArgs :: OpenJTalkContext
               -> FilePath
+              -> FilePath
               -> [String]
-openJTalkArgs (OpenJTalkContext jt) p =
+openJTalkArgs (OpenJTalkContext jt) voice p =
     [ "-x"
     , dictDir jt
     , "-m"
-    , voiceFile jt
+    , (voiceDir jt </> voice)
     , "-a", "0.5"
     , "-r", "0.9"
     , "-b", "0.2"
@@ -50,11 +54,13 @@ openJTalkArgs (OpenJTalkContext jt) p =
     ]
 
 outputWave :: OpenJTalkContext
+           -> Maybe String
            -> String
            -> IO (Maybe FilePath)
-outputWave c@(OpenJTalkContext jt) text = do
+outputWave c@(OpenJTalkContext jt) voice text = do
     let name = outDir jt </> (show $ hashWith SHA1 (fromString text :: B.ByteString)) <.> "wav"
-    ec <- withCreateProcess (proc "open_jtalk" (openJTalkArgs c name)) { std_in = CreatePipe } $ \(Just inh) _ _ ph -> do
+    let voice' = maybe defaultVoiceFile id voice
+    ec <- withCreateProcess (proc "open_jtalk" (openJTalkArgs c voice' name)) { std_in = CreatePipe } $ \(Just inh) _ _ ph -> do
         let text' = B.pack (UTF8.encode text)
         hSetBuffering inh NoBuffering
         C8.hPutStrLn inh text'
@@ -70,9 +76,10 @@ waveToMP3 input = do
     return $ if ec == ExitSuccess then Just output else Nothing
 
 outputMP3 :: OpenJTalkContext
+          -> Maybe String
           -> String
           -> IO (Maybe FilePath)
-outputMP3 c text = runMaybeT $ MaybeT (outputWave c text) >>= (MaybeT . (\p -> waveToMP3 p <* removeFile p))
+outputMP3 c voice text = runMaybeT $ MaybeT (outputWave c voice text) >>= (MaybeT . (\p -> waveToMP3 p <* removeFile p))
 
 instance Resource OpenJTalk where
     type ContextType OpenJTalk = OpenJTalkContext

@@ -4,7 +4,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedLabels #-}
 
-module Mintz.Site.Publish where
+module Mintz.HTTP.API.Publish where
 
 import GHC.Generics
 import Control.Exception
@@ -27,6 +27,9 @@ import Mintz.Service.Publish
 
 data PublishForm = PublishForm { message :: String
                                , kind :: String
+                               , voice :: Maybe String
+                               , channel :: String
+                               , persons :: Maybe Int
                                }
 
 $(validatable [''PublishForm])
@@ -40,9 +43,11 @@ publish' :: SiteContext
          -> Action NoContent
 publish' sc form = do
     case validate form of
-        Nothing -> return ()
+        Nothing -> do
+            print $ errors (Proxy :: Proxy PublishForm) form
+            return ()
         Just f -> do
-            withContext @'[REDIS, JTALK] sc $ do
-                publishMessage (message f) (kind f)
+            withContext @'[DB, REDIS, JTALK, CHATBOT] sc $ do
+                publishMessage (message f) (kind f) (voice f) (channel f) ((:[]) <$> persons f)
             return ()
     return NoContent

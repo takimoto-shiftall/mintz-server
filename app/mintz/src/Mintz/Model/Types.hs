@@ -24,6 +24,14 @@ data Label = Label { en_label :: String
                    , mb_reading :: String
                    } deriving (Show, Read, Eq, Generic)
 
+labelOf :: String -> (Label -> String)
+labelOf "ja" = mb_label
+labelOf _ = en_label
+
+readingOf :: String -> (Label -> String)
+readingOf "ja" = mb_reading
+readingOf _ = en_reading
+
 instance Convertible Label SqlValue where
     safeConvert (Label {..}) = safeConvert $ "(\"" ++ L.intercalate "\",\"" (map esc [en_label, mb_label, en_reading, mb_reading]) ++ "\")"
         where
@@ -41,6 +49,10 @@ instance Convertible SqlValue Label where
 data Lang = Lang { en :: String
                  , mb :: String
                  } deriving (Show, Read, Eq, Generic)
+
+langOf :: String -> (Lang -> String)
+langOf "ja" = mb
+langOf _ = en
 
 instance Convertible Lang SqlValue where
     safeConvert (Lang {..}) = safeConvert $ "(\"" ++ L.intercalate "\",\"" (map esc [en, mb]) ++ "\")"

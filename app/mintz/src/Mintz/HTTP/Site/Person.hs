@@ -4,7 +4,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedLabels #-}
 
-module Mintz.Site.Person where
+module Mintz.HTTP.Site.Person where
 
 import GHC.Generics
 import Control.Exception
@@ -54,7 +54,7 @@ $(validatable [''PersonForm])
 -- cache_PersonIndex = unsafePerformIO $ newIORef Nothing
 -- cache_PersonCreate = unsafePerformIO $ newIORef Nothing
 
-type PersonAPI = "person" :>
+type PersonSite = "person" :>
                ( QueryParam "limit" Int
                     :> QueryParam "offset" Int
                     :> Get '[PersonIndex] [Person]
@@ -63,10 +63,10 @@ type PersonAPI = "person" :>
             :<|> ReqBody '[FormUrlEncoded] PersonForm' :> Post '[HTML] (Headers '[Header "Location" String] Renderer)
                )
 
-personAPI sc = index' sc
-          :<|> inputCreate' sc
-          :<|> confirmCreate' sc
-          :<|> create' sc
+personSite sc = index' sc
+           :<|> inputCreate' sc
+           :<|> confirmCreate' sc
+           :<|> create' sc
 
 index' :: SiteContext
        -> Maybe Int

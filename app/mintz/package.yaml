@@ -33,6 +33,8 @@ dependencies:
   - bytestring
   - filepath
   - directory
+  - case-insensitive
+  - http-conduit
   - http-media
   - http-api-data
   - servant
