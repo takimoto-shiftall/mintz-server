@@ -8,6 +8,7 @@ module Mintz.HTTP.Site.Person where
 
 import GHC.Generics
 import Control.Exception
+import Control.Monad
 import Control.Monad.IO.Class
 import Data.Maybe (maybe)
 import Data.Proxy
@@ -48,7 +49,7 @@ data PersonForm = PersonForm { first_name_en :: String
 $(validatable [''PersonForm])
 
 [tmpld| PersonCreate template/person/create.html (Maybe PersonForm') |]
-[tmpl| PersonIndex template/person/index.html [Person] |]
+[tmpld| PersonIndex template/person/index.html [Person] |]
 [tmpld| PersonConfirmCreate template/person/create-confirm.html PersonForm |]
 
 -- cache_PersonIndex = unsafePerformIO $ newIORef Nothing
@@ -97,11 +98,13 @@ create' :: SiteContext
         -> Action (Headers '[Header "Location" String] Renderer)
 create' sc form = do
     case validate form of
-        Nothing -> back
+        Nothing -> do
+            forM_ (errorsOf @PersonForm form) (logCD @@ sc)
+            back
         Just f -> do
             (person, _) <- withContext @'[DB] sc $ do
                 createPerson (buildPerson f)
-            return $ (addHeader "/person") $ EmptyContent
+            return $ (addHeader "/site/person") $ EmptyContent
     where
         back :: Action (Headers '[Header "Location" String] Renderer)
         back = return $ noHeader $ Renderer (Proxy :: Proxy PersonCreate) (Just form)

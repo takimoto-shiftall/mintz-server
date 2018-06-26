@@ -42,6 +42,7 @@ dependencies:
   - wai
   - warp
   - HDBC
+  - yaml
   - aeson
   - lens
   - extensible

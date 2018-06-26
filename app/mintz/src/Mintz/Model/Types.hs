@@ -38,7 +38,6 @@ instance Convertible Label SqlValue where
             esc "" = ""
             esc ('\"':cs) = "\\\"" ++ (esc cs)
             esc ('\\':cs) = "\\\\" ++ (esc cs)
-            esc ('\'':cs) = "''" ++ (esc cs)
             esc (c:cs) = c:(esc cs)
 
 instance Convertible SqlValue Label where
@@ -60,7 +59,6 @@ instance Convertible Lang SqlValue where
             esc "" = ""
             esc ('\"':cs) = "\\\"" ++ (esc cs)
             esc ('\\':cs) = "\\\\" ++ (esc cs)
-            esc ('\'':cs) = "''" ++ (esc cs)
             esc (c:cs) = c:(esc cs)
 
 -- 複合型は、全体を()で囲い、各要素を,で区切った文字列として扱う。

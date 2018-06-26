@@ -25,7 +25,7 @@ import Mintz.Resource.Redis
 import Mintz.Resource.OpenJTalk
 import Mintz.Resource.TypeTalk
 
-data VoicePublish = VoicePublish { url :: String
+data VoicePublish = VoicePublish { audio :: String
                                  , kind :: String
                                  } deriving (Eq, Show, Generic)
 
@@ -39,16 +39,16 @@ publishMessage :: (With '[DB, REDIS, JTALK, CHATBOT])
                -> String
                -> Maybe String
                -> String
-               -> Maybe [Int]
+               -> [Int]
+               -> (String -> String)
                -> IO ()
-publishMessage message kind' voice channel persons = do
+publishMessage message kind' voice channel persons formatUrl = do
     accounts <- case persons of
-        Nothing -> return []
-        Just ps -> do
-            with @'[DB] $ do
+        [] -> return []
+        _ -> with @'[DB] $ do
                 graph <- selectNodes (Proxy :: Proxy PublishGraph)
                                      (Proxy :: Proxy PublishPerson)
-                                     ((=@?) @PublishPerson "id" ps)
+                                     ((=@?) @PublishPerson "id" persons)
                                      (orderBy @PublishPerson "id" ASC)
                                      Nothing
                 return $ catMaybes $ map typeTalkName (values graph :: [PublishPerson])
@@ -60,8 +60,8 @@ publishMessage message kind' voice channel persons = do
 
     case path of
         Just p -> do
-            let url' = p
+            let url = formatUrl p
             (RedisPubSubContext conn) <- readIORef $ contextOf @REDIS ?cxt
-            runRedis conn $ publish (fromString channel) $ B.toStrict (encode (VoicePublish url' kind'))
+            runRedis conn $ publish (fromString channel) $ B.toStrict (encode (VoicePublish url kind'))
             return ()
         Nothing -> return ()

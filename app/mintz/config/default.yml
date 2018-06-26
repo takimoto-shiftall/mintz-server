@@ -1,0 +1,18 @@
+publish:
+  audio_url: http://localhost:8001/
+
+type_talk:
+  topic_id: 0
+  token: typetalk bot token
+
+cross_domain:
+  origin: http://localhost:8001/
+
+open_jtalk:
+  dict_dir: path to directory of dictionaries
+  voice_dir: path to directory of voices
+  out_dir: path to directory to output audio relative to application root
+  voices:
+    voice_key:
+      path: path to voice file under voice_dir
+      description: text explaining the feature of the voice
