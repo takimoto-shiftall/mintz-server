@@ -70,7 +70,7 @@ main = do
     let resources = dr `RCons` rr `RCons` tr `RCons` br `RCons` lr `RCons` RNil
 
     let contextTypes = Proxy :: Proxy '[ RequestContextEntry SiteKeys '[DBResource Database, RedisPubSub, OpenJTalk, TypeTalkBot, LoggingResource]
-                                       , PublishSettings
+                                       , LinkSettings
                                        , CrossDomainOrigin
                                        , M.Map String VoiceProperties
                                        ]
@@ -81,12 +81,12 @@ main = do
                                     resourceServer
     --let rs = enter (NT $ actionHandler resources) resourceServer
 
+    let linkContext = Mintz.Settings.link settings
     let crossDomainContext = CrossDomainOrigin (origin $ cross_domain settings)
-    let publishContext = Mintz.Settings.publish settings
     let voiceProperties = Mintz.Settings.voices $ open_jtalk settings
 
     Warp.run 8001 $ resourceApp (Proxy :: Proxy AllAPI)
                                 resources
                                 (Proxy :: Proxy SiteKeys)
-                                (publishContext :. crossDomainContext :. voiceProperties :. EmptyContext)
+                                (linkContext :. crossDomainContext :. voiceProperties :. EmptyContext)
                                 (rs :<|> serveDirectoryWebApp "public")

@@ -1,0 +1,16 @@
+version: '3'
+services:
+  app:
+    build: ./app
+    volumes:
+      - ./app/mintz:/mintz
+      - mintz_stack:/root/.stack
+    working_dir: /mintz
+    command: stack build
+    environment:
+      PATH: "/root/.local/bin:${PATH}"
+    ports:
+      - 18001:8001
+    container_name: mintz_server
+volumes:
+  mintz_stack:

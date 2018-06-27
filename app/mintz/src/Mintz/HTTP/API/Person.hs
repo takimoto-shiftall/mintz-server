@@ -7,8 +7,10 @@
 module Mintz.HTTP.API.Person where
 
 import GHC.Generics
+import Control.Monad.Except
 import Control.Exception
 import Data.Maybe (maybe)
+import Text.Printf
 import qualified Data.ByteString.Lazy.UTF8 as UTF8
 import Servant.API
 import Servant.Server
@@ -20,15 +22,17 @@ import Database.ORM
 import Ext.Servant.Action
 import Ext.Servant.Context
 import Ext.Servant.Validation
+import Ext.Servant.Combinators
 import Mintz.Settings
 import Mintz.Model.Models
 import Mintz.Model.Types
 import Mintz.Service.Person
+import Mintz.HTTP.API.Types
 
 defaultListLength = 100
 defaultLang = "ja"
 
-type PersonAPI = "person" :> 
+type PersonAPI = "person" :> Use LinkSettings :>
                ( QueryParam "limit" Int
                           :> QueryParam "offset" Int
                           :> QueryParam "lang" String
@@ -37,6 +41,8 @@ type PersonAPI = "person" :>
 
 data PersonItem = PersonItem { id :: Integer
                              , name :: String
+                             , reading :: String
+                             , icon :: String
                              , description :: String
                              } deriving (Generic)
 
@@ -45,23 +51,98 @@ instance ToJSON PersonItem
 personAPI sc = index' sc
 
 index' :: SiteContext
+       -> LinkSettings
        -> Maybe Int
        -> Maybe Int
        -> Maybe String
        -> Action [PersonItem]
-index' sc limit offset lang = do
+index' sc link limit offset lang = do
     (persons, _) <- withContext @'[DB] sc $ do
         listPersons (maybe defaultListLength Prelude.id limit) (maybe 0 Prelude.id offset)
-    return $ map (model2Item $ maybe defaultLang Prelude.id lang) persons
+    return $ map (model2Item (icon_url link) $ maybe defaultLang Prelude.id lang) persons
 
 model2Item :: String
+           -> String
            -> Person
            -> PersonItem
-model2Item lang m = let r = getRecord m
-                    in PersonItem { id = view #id r
-                                  , name = lbl (view #last_name r) ++ " " ++ lbl (view #first_name r)
-                                  , description = lng (view #description r)
-                                  }
+model2Item url lang m = let r = getRecord m
+                            fn = view #first_name r
+                            ln = view #last_name r
+                            iconUrl = maybe "" ((url ++) . (++ ".png")) (typeTalkName m)
+                        in PersonItem { id = view #id r
+                                      , name = lbl fn ++ " " ++ lbl ln
+                                      , reading = rdg fn ++ " " ++ rdg ln
+                                      , icon = iconUrl
+                                      , description = lng (view #description r)
+                                      }
     where
         lbl = labelOf lang
+        rdg = readingOf lang
         lng = langOf lang
+
+data ReadableString = ReadableString { text :: String
+                                     , reading :: String
+                                     } deriving (Show, Generic)
+
+data MultiReadable = MultiReadable { en :: ReadableString
+                                   , ja :: ReadableString
+                                   } deriving (Show, Generic)
+
+data MultiLang = MultiLang { en :: String
+                           , ja :: String
+                           } deriving (Show, Generic)
+
+data PersonForm = PersonForm { first_name :: MultiReadable
+                             , middle_name ::MultiReadable
+                             , last_name :: MultiReadable
+                             , description :: MultiLang
+                             , typetalk_name :: String
+                             } deriving (Show, Generic)
+
+$(validatable [''ReadableString, ''MultiReadable, ''MultiLang, ''PersonForm])
+
+create' :: SiteContext
+        -> PersonForm'
+        -> Action Person
+create' sc form = do
+    case validate form of
+        Nothing -> do
+            --throwError $ errorFor err400 (APIError 400 (errorsOf form)) sc
+            throw err400
+        Just f -> do
+            (person, _) <- withContext @'[DB] sc $ do
+                createPerson (buildPerson f)
+            return person
+
+buildPerson :: PersonForm
+            -> Person
+buildPerson f = Model (
+    #id @= 0
+ <: #first_name @= Label { en_label = (text . enN . first_name) f
+                         , mb_label = (text . jaN . first_name) f
+                         , en_reading = (rdg . enN . first_name) f
+                         , mb_reading = (rdg . jaN . first_name) f
+                         }
+ <: #middle_name @= Label { en_label = (text . enN . middle_name) f
+                          , mb_label = (text . jaN . middle_name) f
+                          , en_reading = (rdg . enN . middle_name) f
+                          , mb_reading = (rdg . jaN . middle_name) f
+                          }
+ <: #last_name @= Label { en_label = (text . enN . last_name) f
+                        , mb_label = (text . jaN . last_name) f
+                        , en_reading = (rdg . enN . last_name) f
+                        , mb_reading = (rdg . jaN . last_name) f
+                        }
+ <: #description @= Lang { en = (enD . desc) f
+                         , mb = (jaD . desc) f
+                         }
+ <: #notifications @= UTF8.toString (encode (Notifications { type_talk = Just (TypeTalk (typetalk_name f)) }))
+ <: emptyRecord
+ ) :: Person
+    where
+        enN = en :: MultiReadable -> ReadableString
+        jaN = ja :: MultiReadable -> ReadableString
+        enD = en :: MultiLang -> String
+        jaD = ja :: MultiLang -> String
+        rdg = reading :: ReadableString -> String
+        desc = description :: PersonForm -> MultiLang

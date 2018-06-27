@@ -36,13 +36,13 @@ data PublishForm = PublishForm { message :: String
 
 $(validatable [''PublishForm])
 
-type PublishAPI = "publish" :> Use PublishSettings :> Use (M.Map String VoiceProperties)
+type PublishAPI = "publish" :> Use LinkSettings :> Use (M.Map String VoiceProperties)
                 :> ReqBody '[JSON] PublishForm' :> Post '[JSON] NoContent
 
 publishAPI sc = publish' sc
 
 publish' :: SiteContext
-         -> PublishSettings
+         -> LinkSettings
          -> M.Map String VoiceProperties
          -> PublishForm'
          -> Action NoContent
@@ -52,8 +52,9 @@ publish' sc ps voices form = do
             print $ errors (Proxy :: Proxy PublishForm) form
             return ()
         Just f -> do
+            let v = voice f >>= ((M.!?) voices) >>= return . path
             withContext @'[DB, REDIS, JTALK, CHATBOT] sc $ do
                 let formatter = \p -> audio_url ps ++ p
-                publishMessage (message f) (kind f) (voice f) (channel f) (persons f) formatter
+                publishMessage (message f) (kind f) v (channel f) (persons f) formatter
             return ()
     return NoContent

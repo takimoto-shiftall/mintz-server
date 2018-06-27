@@ -1,4 +1,5 @@
-publish:
+link:
+  icon_url: http://localhost:8001/public/icon
   audio_url: http://localhost:8001/
 
 type_talk:

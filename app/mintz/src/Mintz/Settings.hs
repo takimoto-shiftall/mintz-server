@@ -39,8 +39,9 @@ type SiteContext = RequestContext SiteKeys (Refs '[DB, REDIS, JTALK, CHATBOT, Lo
 
 publicPath = "/public"
 
-data PublishSettings = PublishSettings {
-      audio_url :: String
+data LinkSettings = LinkSettings {
+      icon_url :: String
+    , audio_url :: String
     } deriving (Generic)
 
 data TypeTalkSettings = TypeTalkSettings {
@@ -65,13 +66,13 @@ data JTalkSettings = JTalkSettings {
     } deriving (Generic)
 
 data AppSettings = AppSettings {
-      publish :: PublishSettings
+      link :: LinkSettings
     , type_talk :: TypeTalkSettings
     , cross_domain :: CrossDomainSettings
     , open_jtalk :: JTalkSettings
     } deriving (Generic)
 
-instance FromJSON PublishSettings
+instance FromJSON LinkSettings
 instance FromJSON TypeTalkSettings
 instance FromJSON CrossDomainSettings
 instance FromJSON VoiceProperties
