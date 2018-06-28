@@ -21,7 +21,7 @@ import Mintz.Resource.TypeTalk
 
 newtype Database = Database PostgreSQL deriving (DBSettings)
 
-db = Database (PostgreSQL "postgresql://postgres:postgres@127.0.0.1:15432/mintz" 10)
+db = Database (PostgreSQL "postgresql://postgres:postgres@172.27.146.49:15432/mintz" 10)
 
 type DB = DBContext Database
 type REDIS = RedisPubSubContext
@@ -38,6 +38,11 @@ type SiteContext = RequestContext SiteKeys (Refs '[DB, REDIS, JTALK, CHATBOT, Lo
 (@@) f (RequestContext _ cs _) = f cs
 
 publicPath = "/public"
+
+data DatabaseSettings = DatabaseSettings {
+      dsn :: String
+    , max_connections :: Int
+    } deriving (Generic)
 
 data LinkSettings = LinkSettings {
       icon_url :: String
@@ -66,12 +71,14 @@ data JTalkSettings = JTalkSettings {
     } deriving (Generic)
 
 data AppSettings = AppSettings {
-      link :: LinkSettings
+      database :: DatabaseSettings
+    , link :: LinkSettings
     , type_talk :: TypeTalkSettings
     , cross_domain :: CrossDomainSettings
     , open_jtalk :: JTalkSettings
     } deriving (Generic)
 
+instance FromJSON DatabaseSettings
 instance FromJSON LinkSettings
 instance FromJSON TypeTalkSettings
 instance FromJSON CrossDomainSettings

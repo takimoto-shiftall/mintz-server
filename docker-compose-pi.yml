@@ -4,11 +4,9 @@ services:
     build: ./app
     volumes:
       - ./app/mintz:/mintz
-      - mintz_stack:/root/.stack
+      - mintz_stack:/root/.stack:cached
     working_dir: /mintz
-    command: stack build
-    environment:
-      PATH: "/root/.local/bin:${PATH}"
+    command: /root/.local/bin/stack build
     ports:
       - 18001:8001
     container_name: mintz_server

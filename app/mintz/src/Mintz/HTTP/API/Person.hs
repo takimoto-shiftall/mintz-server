@@ -36,7 +36,7 @@ type PersonAPI = "person" :> Use LinkSettings :>
                ( QueryParam "limit" Int
                           :> QueryParam "offset" Int
                           :> QueryParam "lang" String
-                          :> Get '[JSON] [PersonItem]
+                          :> Get '[JSON] Persons
                )
 
 data PersonItem = PersonItem { id :: Integer
@@ -46,7 +46,11 @@ data PersonItem = PersonItem { id :: Integer
                              , description :: String
                              } deriving (Generic)
 
+data Persons = Persons { persons :: [PersonItem]
+                       } deriving (Generic)
+
 instance ToJSON PersonItem
+instance ToJSON Persons
 
 personAPI sc = index' sc
 
@@ -55,11 +59,11 @@ index' :: SiteContext
        -> Maybe Int
        -> Maybe Int
        -> Maybe String
-       -> Action [PersonItem]
+       -> Action Persons
 index' sc link limit offset lang = do
     (persons, _) <- withContext @'[DB] sc $ do
         listPersons (maybe defaultListLength Prelude.id limit) (maybe 0 Prelude.id offset)
-    return $ map (model2Item (icon_url link) $ maybe defaultLang Prelude.id lang) persons
+    return $ Persons $ map (model2Item (icon_url link) $ maybe defaultLang Prelude.id lang) persons
 
 model2Item :: String
            -> String

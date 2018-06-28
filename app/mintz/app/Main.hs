@@ -65,7 +65,7 @@ main = do
     rr <- newIORef $ RedisPubSub (defaultConnectInfo { connectHost = "127.0.0.1", connectPort = PortNumber 6379 })
     tr <- newIORef $ openJTalk settings
     br <- newIORef $ typeTalkBot settings
-    dr <- newResource db
+    dr <- newResource $ let dbs = database settings in Database (PostgreSQL (dsn dbs) (max_connections dbs)) 
 
     let resources = dr `RCons` rr `RCons` tr `RCons` br `RCons` lr `RCons` RNil
 
