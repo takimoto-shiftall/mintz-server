@@ -132,5 +132,10 @@ buildPerson f = Model (
                          , mb = description_ja f
                          }
  <: #notifications @= UTF8.toString (encode (Notifications { type_talk = Just (TypeTalk (typetalk_name f)) }))
+ <: #nickname @= Label { en_label = ""
+                       , mb_label = ""
+                       , en_reading = ""
+                       , mb_reading = ""
+                       }
  <: emptyRecord
  ) :: Person

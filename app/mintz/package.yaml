@@ -39,7 +39,9 @@ dependencies:
   - http-api-data
   - servant
   - servant-server
+  - servant-options
   - wai
+  - wai-cors
   - warp
   - HDBC
   - yaml

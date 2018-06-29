@@ -13,6 +13,8 @@ import Database.ORM
 import Mintz.Model.Types
 import Mintz.Settings (db)
 
+-- version: 20180625_161128-alter-person.sql
+
 $(declareColumns db "person" "Person'")
 $(declareColumns db "company" "Company'")
 $(declareColumns db "employment" "Employment'")

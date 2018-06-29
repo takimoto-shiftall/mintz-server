@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
@@ -14,6 +15,8 @@ import Servant.API
 import Servant.Server
 import Servant.Utils.StaticFiles
 import Network.Wai (Application)
+import Network.Wai.Middleware.Cors
+import Network.Wai.Middleware.Servant.Options (provideOptions)
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai as Wai
 import Database.Redis
@@ -38,7 +41,7 @@ type ResourceAPI = (@>) '[DBResource Database, RedisPubSub, OpenJTalk, TypeTalkB
                         :> ( PersonSite
                            )
                     :<|> "api"
-                        :> CrossDomain '[ 'GET, 'POST, 'PUT, 'DELETE ]
+                        -- :> CrossDomain '[ 'GET, 'POST, 'PUT, 'DELETE, 'OPTIONS ]
                         :> ( PublishAPI
                         :<|> PersonAPI
                         :<|> VoiceAPI
@@ -53,6 +56,13 @@ resourceServer sc = personSite sc
                  :<|> personAPI sc
                  :<|> voiceAPI sc
                     )
+
+policy :: CorsResourcePolicy
+policy = simpleCorsResourcePolicy {
+      corsRequestHeaders = ["*"]
+    , corsMethods = ["*"]
+    , corsOrigins = Nothing
+    }
 
 main :: IO ()
 main = do
@@ -85,8 +95,11 @@ main = do
     let crossDomainContext = CrossDomainOrigin (origin $ cross_domain settings)
     let voiceProperties = Mintz.Settings.voices $ open_jtalk settings
 
-    Warp.run 8001 $ resourceApp (Proxy :: Proxy AllAPI)
-                                resources
-                                (Proxy :: Proxy SiteKeys)
-                                (linkContext :. crossDomainContext :. voiceProperties :. EmptyContext)
-                                (rs :<|> serveDirectoryWebApp "public")
+    let app = resourceApp (Proxy :: Proxy AllAPI)
+                          resources
+                          (Proxy :: Proxy SiteKeys)
+                          (linkContext :. crossDomainContext :. voiceProperties :. EmptyContext)
+                          (rs :<|> serveDirectoryWebApp "public")
+
+    -- Warp.run 8001 $ cors (const $ Just policy) $ provideOptions (Proxy :: Proxy AllAPI) $ app
+    Warp.run 8001 app

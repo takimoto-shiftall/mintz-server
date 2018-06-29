@@ -42,6 +42,7 @@ type PersonAPI = "person" :> Use LinkSettings :>
 data PersonItem = PersonItem { id :: Integer
                              , name :: String
                              , reading :: String
+                             , nickname :: String
                              , icon :: String
                              , description :: String
                              } deriving (Generic)
@@ -76,6 +77,7 @@ model2Item url lang m = let r = getRecord m
                         in PersonItem { id = view #id r
                                       , name = lbl fn ++ " " ++ lbl ln
                                       , reading = rdg fn ++ " " ++ rdg ln
+                                      , nickname = lbl (view #nickname r)
                                       , icon = iconUrl
                                       , description = lng (view #description r)
                                       }
@@ -99,11 +101,51 @@ data MultiLang = MultiLang { en :: String
 data PersonForm = PersonForm { first_name :: MultiReadable
                              , middle_name ::MultiReadable
                              , last_name :: MultiReadable
+                             , nickname :: MultiReadable
                              , description :: MultiLang
                              , typetalk_name :: String
                              } deriving (Show, Generic)
 
 $(validatable [''ReadableString, ''MultiReadable, ''MultiLang, ''PersonForm])
+
+-- {
+--     "first_name": {
+--         "en": {
+--             "text": "Takuma",
+--             "reading": "Takuma"
+--         },
+--         "ja": {
+--             "text": "琢磨",
+--             "reading": "タクマ"
+--         }
+--     },
+--     "middle_name": {
+--         "en": {
+--             "text": "",
+--             "reading": ""
+--         },
+--         "ja": {
+--             "text": "",
+--             "reading": ""
+--         }
+--     },
+--     "last_name": {
+--         "en": {
+--             "text": "Iwasa",
+--             "reading": "Iwasa"
+--         },
+--         "ja": {
+--             "text": "岩佐",
+--             "reading": "イワサ"
+--         }
+--     },
+--     "description": {
+--         "en": "CEO",
+--         "ja": "代表取締役"
+--     },
+--     "typetalk_name": "iwasa"
+-- }
+-- insert into person (first_name, middle_name, last_name, description, notifications) values ('(Takuma,"琢磨",Takuma,"たくま")','("","","","")','(Iwasa,"岩佐",Iwasa,"いわさ")','("CEO","CEO")','{}')
 
 create' :: SiteContext
         -> PersonForm'
@@ -141,6 +183,11 @@ buildPerson f = Model (
                          , mb = (jaD . desc) f
                          }
  <: #notifications @= UTF8.toString (encode (Notifications { type_talk = Just (TypeTalk (typetalk_name f)) }))
+ <: #nickname @= Label { en_label = (text . enN . nn) f
+                       , mb_label = (text . jaN . nn) f
+                       , en_reading = (rdg . jaN . nn) f
+                       , mb_reading = (rdg . jaN . nn) f
+                       }
  <: emptyRecord
  ) :: Person
     where
@@ -150,3 +197,4 @@ buildPerson f = Model (
         jaD = ja :: MultiLang -> String
         rdg = reading :: ReadableString -> String
         desc = description :: PersonForm -> MultiLang
+        nn = nickname :: PersonForm -> MultiReadable

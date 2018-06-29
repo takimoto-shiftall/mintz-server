@@ -40,6 +40,7 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
+- servant-options-0.1.0.0
 - HDBC-postgresql-2.3.2.5
 - hs-orm/hs-graph
 - hs-orm

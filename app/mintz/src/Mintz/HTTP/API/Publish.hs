@@ -41,6 +41,13 @@ type PublishAPI = "publish" :> Use LinkSettings :> Use (M.Map String VoiceProper
 
 publishAPI sc = publish' sc
 
+--{
+--    "message": "こんにちは",
+--    "kind": "test",
+--    "channel": "mintz",
+--    "persons": []
+--}
+
 publish' :: SiteContext
          -> LinkSettings
          -> M.Map String VoiceProperties
