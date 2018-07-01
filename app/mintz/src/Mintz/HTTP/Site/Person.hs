@@ -137,5 +137,6 @@ buildPerson f = Model (
                        , en_reading = ""
                        , mb_reading = ""
                        }
+ <: #display_order @= 0
  <: emptyRecord
  ) :: Person

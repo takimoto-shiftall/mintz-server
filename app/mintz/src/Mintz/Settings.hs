@@ -21,7 +21,7 @@ import Mintz.Resource.TypeTalk
 
 newtype Database = Database PostgreSQL deriving (DBSettings)
 
-db = Database (PostgreSQL "postgresql://postgres:postgres@172.16.147.59:15432/mintz" 10)
+db = Database (PostgreSQL "postgresql://postgres:postgres@127.0.0.1:15432/mintz" 10)
 
 type DB = DBContext Database
 type REDIS = RedisPubSubContext

@@ -32,11 +32,34 @@ import Mintz.HTTP.API.Types
 defaultListLength = 100
 defaultLang = "ja"
 
+data ReadableString = ReadableString { text :: String
+                                     , reading :: String
+                                     } deriving (Show, Generic)
+
+data MultiReadable = MultiReadable { en :: ReadableString
+                                   , ja :: ReadableString
+                                   } deriving (Show, Generic)
+
+data MultiLang = MultiLang { en :: String
+                           , ja :: String
+                           } deriving (Show, Generic)
+
+data PersonForm = PersonForm { first_name :: MultiReadable
+                             , middle_name ::MultiReadable
+                             , last_name :: MultiReadable
+                             , nickname :: MultiReadable
+                             , description :: MultiLang
+                             , typetalk_name :: String
+                             } deriving (Show, Generic)
+
+$(validatable [''ReadableString, ''MultiReadable, ''MultiLang, ''PersonForm])
+
 type PersonAPI = "person" :> Use LinkSettings :>
                ( QueryParam "limit" Int
                           :> QueryParam "offset" Int
                           :> QueryParam "lang" String
                           :> Get '[JSON] Persons
+            :<|> ReqBody '[JSON] PersonForm' :> Post '[JSON] ()
                )
 
 data PersonItem = PersonItem { id :: Integer
@@ -53,7 +76,8 @@ data Persons = Persons { persons :: [PersonItem]
 instance ToJSON PersonItem
 instance ToJSON Persons
 
-personAPI sc = index' sc
+personAPI sc link = index' sc link
+               :<|> create' sc link
 
 index' :: SiteContext
        -> LinkSettings
@@ -86,71 +110,11 @@ model2Item url lang m = let r = getRecord m
         rdg = readingOf lang
         lng = langOf lang
 
-data ReadableString = ReadableString { text :: String
-                                     , reading :: String
-                                     } deriving (Show, Generic)
-
-data MultiReadable = MultiReadable { en :: ReadableString
-                                   , ja :: ReadableString
-                                   } deriving (Show, Generic)
-
-data MultiLang = MultiLang { en :: String
-                           , ja :: String
-                           } deriving (Show, Generic)
-
-data PersonForm = PersonForm { first_name :: MultiReadable
-                             , middle_name ::MultiReadable
-                             , last_name :: MultiReadable
-                             , nickname :: MultiReadable
-                             , description :: MultiLang
-                             , typetalk_name :: String
-                             } deriving (Show, Generic)
-
-$(validatable [''ReadableString, ''MultiReadable, ''MultiLang, ''PersonForm])
-
--- {
---     "first_name": {
---         "en": {
---             "text": "Takuma",
---             "reading": "Takuma"
---         },
---         "ja": {
---             "text": "琢磨",
---             "reading": "タクマ"
---         }
---     },
---     "middle_name": {
---         "en": {
---             "text": "",
---             "reading": ""
---         },
---         "ja": {
---             "text": "",
---             "reading": ""
---         }
---     },
---     "last_name": {
---         "en": {
---             "text": "Iwasa",
---             "reading": "Iwasa"
---         },
---         "ja": {
---             "text": "岩佐",
---             "reading": "イワサ"
---         }
---     },
---     "description": {
---         "en": "CEO",
---         "ja": "代表取締役"
---     },
---     "typetalk_name": "iwasa"
--- }
--- insert into person (first_name, middle_name, last_name, description, notifications) values ('(Takuma,"琢磨",Takuma,"たくま")','("","","","")','(Iwasa,"岩佐",Iwasa,"いわさ")','("CEO","CEO")','{}')
-
 create' :: SiteContext
+        -> LinkSettings
         -> PersonForm'
-        -> Action Person
-create' sc form = do
+        -> Action ()
+create' sc link form = do
     case validate form of
         Nothing -> do
             --throwError $ errorFor err400 (APIError 400 (errorsOf form)) sc
@@ -158,7 +122,7 @@ create' sc form = do
         Just f -> do
             (person, _) <- withContext @'[DB] sc $ do
                 createPerson (buildPerson f)
-            return person
+            return ()
 
 buildPerson :: PersonForm
             -> Person
@@ -188,6 +152,7 @@ buildPerson f = Model (
                        , en_reading = (rdg . jaN . nn) f
                        , mb_reading = (rdg . jaN . nn) f
                        }
+ <: #display_order @= 0
  <: emptyRecord
  ) :: Person
     where
