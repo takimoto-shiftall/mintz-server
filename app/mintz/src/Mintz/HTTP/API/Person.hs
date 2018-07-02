@@ -149,7 +149,7 @@ buildPerson f = Model (
  <: #notifications @= UTF8.toString (encode (Notifications { type_talk = Just (TypeTalk (typetalk_name f)) }))
  <: #nickname @= Label { en_label = (text . enN . nn) f
                        , mb_label = (text . jaN . nn) f
-                       , en_reading = (rdg . jaN . nn) f
+                       , en_reading = (rdg . enN . nn) f
                        , mb_reading = (rdg . jaN . nn) f
                        }
  <: #display_order @= 0

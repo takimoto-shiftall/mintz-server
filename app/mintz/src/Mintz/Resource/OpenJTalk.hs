@@ -53,33 +53,52 @@ openJTalkArgs (OpenJTalkContext jt) voice p =
     , "-ow", p
     ]
 
+wavePath :: OpenJTalkContext
+         -> String
+         -> FilePath
+wavePath c@(OpenJTalkContext jt) name = outDir jt </> name <.> "wav"
+
+mp3Path :: FilePath
+        -> FilePath
+mp3Path p = replaceExtension p "mp3"
+
 outputWave :: OpenJTalkContext
            -> Maybe String
            -> String
+           -> String
            -> IO (Maybe FilePath)
-outputWave c@(OpenJTalkContext jt) voice text = do
-    let name = outDir jt </> (show $ hashWith SHA1 (fromString text :: B.ByteString)) <.> "wav"
+outputWave c@(OpenJTalkContext jt) voice text name = do
+    let path = wavePath c name
     let voice' = maybe defaultVoiceFile id voice
-    ec <- withCreateProcess (proc "open_jtalk" (openJTalkArgs c voice' name)) { std_in = CreatePipe } $ \(Just inh) _ _ ph -> do
+    ec <- withCreateProcess (proc "open_jtalk" (openJTalkArgs c voice' path)) { std_in = CreatePipe } $ \(Just inh) _ _ ph -> do
         let text' = B.pack (UTF8.encode text)
         hSetBuffering inh NoBuffering
         C8.hPutStrLn inh text'
         waitForProcess ph
-    return $ if ec == ExitSuccess then Just name else Nothing
+    return $ if ec == ExitSuccess then Just path else Nothing
 
 waveToMP3 :: FilePath
+          -> Bool
           -> IO (Maybe FilePath)
-waveToMP3 input = do
-    let output = replaceExtension input "mp3"
-    ec <- withCreateProcess (proc "avconv" ["-y", "-i", input, output]) $ \_ _ _ ph -> do
-        waitForProcess ph
-    return $ if ec == ExitSuccess then Just output else Nothing
+waveToMP3 input overwrite = do
+    let output = mp3Path input
+    exists <- doesPathExist output
+    if not exists || overwrite
+        then do
+            ec <- withCreateProcess (proc "avconv" ["-y", "-i", input, output]) $ \_ _ _ ph -> do
+                waitForProcess ph
+            return $ if ec == ExitSuccess then Just output else Nothing
+        else
+            return $ Just output
 
 outputMP3 :: OpenJTalkContext
           -> Maybe String
           -> String
+          -> String
+          -> Bool
           -> IO (Maybe FilePath)
-outputMP3 c voice text = runMaybeT $ MaybeT (outputWave c voice text) >>= (MaybeT . (\p -> waveToMP3 p <* removeFile p))
+outputMP3 c voice text name overwrite =
+    runMaybeT $ MaybeT (outputWave c voice text name) >>= (MaybeT . (\p -> waveToMP3 p overwrite <* removeFile p))
 
 instance Resource OpenJTalk where
     type ContextType OpenJTalk = OpenJTalkContext
@@ -95,3 +114,13 @@ instance ResourceContext OpenJTalkContext where
     -- control :: (RunInBase m IO -> IO (StM m a)) -> m a
     --         == ((m a -> IO (StM m a)) -> IO (StM m a)) -> m a
     execContext ref action = action
+
+execMP3 :: (With '[OpenJTalkContext])
+        => Maybe String
+        -> String
+        -> FilePath
+        -> Bool
+        -> IO (Maybe FilePath)
+execMP3 voice text name overwrite = do
+    jtalk <- readIORef $ contextOf @OpenJTalkContext ?cxt
+    outputMP3 jtalk voice text name overwrite

@@ -3,7 +3,7 @@ database:
   max_connections: 10
 
 link:
-  icon_url: http://localhost:8001/public/icon
+  icon_url: http://localhost:8001/public/icon/
   audio_url: http://localhost:8001/
 
 type_talk:

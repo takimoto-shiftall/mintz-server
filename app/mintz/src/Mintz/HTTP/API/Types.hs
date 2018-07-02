@@ -10,6 +10,7 @@ import Network.HTTP.Media
 import Servant.API
 import Servant.Server
 import Ext.Servant.Context
+import Ext.Servant.Validation
 
 type ErrorCode = Int
 
@@ -27,3 +28,8 @@ instance Erroneous APIError where
             org { errBody = encode e }
         | otherwise =
             org { errBody = fromString ("Code = " ++ show (code e) ++ ", Message = " ++ show (messages e)) }
+
+instance Erroneous [ValidationError] where
+    type ErroneousTypes [ValidationError] = '[JSON]
+
+    buildError org e mt = buildError org (APIError 400 e) mt

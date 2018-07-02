@@ -44,7 +44,7 @@ createPerson person = do
     let pid = view #id (getRecord p)
 
     stmt <- prepare conn "UPDATE person \
-                         \SET display_order = (SELECT COALESCE(MAX(display_order), 0) FROM person) \
+                         \SET display_order = (SELECT COALESCE(MAX(display_order)+1, 1) FROM person) \
                          \WHERE id = ?"
 
     execute stmt [toSql pid]

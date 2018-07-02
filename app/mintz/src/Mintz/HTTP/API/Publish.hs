@@ -7,7 +7,7 @@
 module Mintz.HTTP.API.Publish where
 
 import GHC.Generics
-import Control.Exception
+import Control.Exception.Safe
 import Control.Monad.IO.Class
 import qualified Data.Map as M
 import Data.Maybe (maybe)
@@ -26,12 +26,14 @@ import Mintz.Settings
 import Ext.Servant.Context
 import Ext.Servant.Validation
 import Mintz.Service.Publish
+import Mintz.HTTP.API.Types
 
 data PublishForm = PublishForm { message :: String
                                , kind :: String
                                , voice :: Maybe String
                                , channel :: String
                                , persons :: [Int]
+                               , extra :: Maybe Object
                                }
 
 $(validatable [''PublishForm])
@@ -41,13 +43,6 @@ type PublishAPI = "publish" :> Use LinkSettings :> Use (M.Map String VoiceProper
 
 publishAPI sc = publish' sc
 
---{
---    "message": "こんにちは",
---    "kind": "test",
---    "channel": "mintz",
---    "persons": []
---}
-
 publish' :: SiteContext
          -> LinkSettings
          -> M.Map String VoiceProperties
@@ -56,12 +51,16 @@ publish' :: SiteContext
 publish' sc ps voices form = do
     case validate form of
         Nothing -> do
-            print $ errors (Proxy :: Proxy PublishForm) form
-            return ()
+            throw $ errorFor err400 (errorsOf @PublishForm form) sc
         Just f -> do
-            let v = voice f >>= ((M.!?) voices) >>= return . path
+            let v = voice (f :: PublishForm) >>= ((M.!?) voices) >>= return . path
             withContext @'[DB, REDIS, JTALK, CHATBOT] sc $ do
                 let formatter = \p -> audio_url ps ++ p
-                publishMessage (message f) (kind f) v (channel f) (persons f) formatter
-            return ()
-    return NoContent
+                publishMessage (PublishEntry (message (f :: PublishForm))
+                                             (kind (f :: PublishForm))
+                                             v
+                                             (channel (f :: PublishForm))
+                                             (persons (f :: PublishForm))
+                                             (extra (f :: PublishForm)))
+                               formatter
+            return NoContent
