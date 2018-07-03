@@ -55,8 +55,9 @@ type PublishGraph = Graph Person'S
 publishMessage :: (With '[DB, REDIS, JTALK, CHATBOT])
                => PublishEntry
                -> (String -> String)
+               -> String
                -> IO Bool
-publishMessage entry@(PublishEntry { kind = kind', extra = extra', .. }) formatUrl = do
+publishMessage entry@(PublishEntry { kind = kind', extra = extra', .. }) formatUrl defaultAudio = do
     accounts <- case persons of
         [] -> return []
         _ -> with @'[DB] $ do
@@ -82,15 +83,12 @@ publishMessage entry@(PublishEntry { kind = kind', extra = extra', .. }) formatU
     with @'[CHATBOT] $ postMessage message (catMaybes $ map typeTalkName accounts)
 
     -- Publish to Redis according to whether valid audio file is available.
-    case path of
-        Just p -> do
-            let url = formatUrl p
-            (RedisPubSubContext conn) <- readIORef $ contextOf @REDIS ?cxt
-            runRedis conn $ publish (fromString channel) $ BL.toStrict (encode (VoicePublish url kind' extra'))
-            return True
-        Nothing ->
-            -- TODO エラーの時にRedisに何を通知するか。
-            return False
+    let url = maybe defaultAudio formatUrl path
+
+    (RedisPubSubContext conn) <- readIORef $ contextOf @REDIS ?cxt
+    runRedis conn $ publish (fromString channel) $ BL.toStrict (encode (VoicePublish url kind' extra'))
+
+    return True
 
 -- TODO 行ロックが必要
 type AudioHashGraph = Graph PublishLog

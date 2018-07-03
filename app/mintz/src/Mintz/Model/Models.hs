@@ -31,20 +31,6 @@ type Person'S = "person" :## Record Person'
 type PublishLog = "publish_log" :++ Record PublishLog'
 type CalledPerson = "called_person" :++ Record ('[] :: [Assoc Symbol *])
 
-fullName :: Person
-         -> LangType
-         -> String
-fullName person EN =
-    let r = getRecord person
-    in L.intercalate " " $ filter (/= "") $ map en_label [view #first_name r, view #middle_name r, view #last_name r]
-fullName person MB =
-    let r = getRecord person
-    in mb_label (view #last_name r) ++ " " ++ mb_label (view #first_name r)
-
-mbName :: Person
-       -> String
-mbName = flip fullName $ MB
-
 typeTalkName :: (RecordWrapper p, Associate "notifications" String (RW'Type p))
              => p
              -> Maybe String

@@ -10,8 +10,10 @@ import GHC.Generics
 import Control.Monad.Except
 import Control.Exception
 import Data.Maybe (maybe)
+import qualified Data.List as L
 import Text.Printf
 import qualified Data.ByteString.Lazy.UTF8 as UTF8
+import qualified Data.ByteString.Lazy as BL
 import Servant.API
 import Servant.Server
 import Data.Aeson
@@ -59,7 +61,10 @@ type PersonAPI = "person" :> Use LinkSettings :>
                           :> QueryParam "offset" Int
                           :> QueryParam "lang" String
                           :> Get '[JSON] Persons
-            :<|> ReqBody '[JSON] PersonForm' :> Post '[JSON] ()
+            :<|> ReqBody '[JSON] PersonForm' :> Post '[JSON] Person
+            :<|> Capture "id" Integer :>
+                   ( "icon" :> ReqBody '[OctetStream] BL.ByteString :> Post '[JSON] ()
+                   )
                )
 
 data PersonItem = PersonItem { id :: Integer
@@ -78,6 +83,7 @@ instance ToJSON Persons
 
 personAPI sc link = index' sc link
                :<|> create' sc link
+               :<|> addIcon' sc link
 
 index' :: SiteContext
        -> LinkSettings
@@ -88,32 +94,30 @@ index' :: SiteContext
 index' sc link limit offset lang = do
     (persons, _) <- withContext @'[DB] sc $ do
         listPersons (maybe defaultListLength Prelude.id limit) (maybe 0 Prelude.id offset)
-    return $ Persons $ map (model2Item (icon_url link) $ maybe defaultLang Prelude.id lang) persons
+    icons <- mapM (findIcon $ icon_dir link) persons
+    let lang' = maybe defaultLang Prelude.id lang
+    return $ Persons $ map (model2Item link lang') $ zip persons icons
 
-model2Item :: String
+model2Item :: LinkSettings
            -> String
-           -> Person
+           -> (Person, Maybe FilePath)
            -> PersonItem
-model2Item url lang m = let r = getRecord m
-                            fn = view #first_name r
-                            ln = view #last_name r
-                            iconUrl = maybe "" ((url ++) . (++ ".png")) (typeTalkName m)
-                        in PersonItem { id = view #id r
-                                      , name = lbl fn ++ " " ++ lbl ln
-                                      , reading = rdg fn ++ " " ++ rdg ln
-                                      , nickname = lbl (view #nickname r)
-                                      , icon = iconUrl
-                                      , description = lng (view #description r)
-                                      }
-    where
-        lbl = labelOf lang
-        rdg = readingOf lang
-        lng = langOf lang
+model2Item link lang (p, icon) =
+    let r = getRecord p
+        (nm, rdg) = nameAndReading p lang
+        iconUrl = maybe (default_icon link) ((icon_url link ++)) icon
+    in PersonItem { id = view #id r
+                  , name = nm
+                  , reading = rdg
+                  , nickname = (labelOf lang) (view #nickname r)
+                  , icon = iconUrl
+                  , description = (langOf lang) (view #description r)
+                  }
 
 create' :: SiteContext
         -> LinkSettings
         -> PersonForm'
-        -> Action ()
+        -> Action Person
 create' sc link form = do
     case validate form of
         Nothing -> do
@@ -122,7 +126,27 @@ create' sc link form = do
         Just f -> do
             (person, _) <- withContext @'[DB] sc $ do
                 createPerson (buildPerson f)
-            return ()
+            return person
+
+addIcon' :: SiteContext
+         -> LinkSettings
+         -> Integer
+         -> BL.ByteString
+         -> Action ()
+addIcon' sc link pid icon = do
+    (res, _) <- withContext @'[DB] sc $ createIcon (icon_dir link) pid icon
+    if res then return ()
+           else throw $ err404
+
+nameAndReading :: Person -> String -> (String, String)
+nameAndReading p "ja" = let r = getRecord p
+                        in ( mb_label (view #last_name r) ++ " " ++ mb_label (view #first_name r)
+                           , mb_reading (view #last_name r) ++ " " ++ mb_reading (view #first_name r)
+                           )
+nameAndReading p _ = let r = getRecord p
+                     in ( L.intercalate " " $ map en_label [view #first_name r, view #middle_name r, view #last_name r]
+                        , L.intercalate " " $ map en_reading [view #first_name r, view #middle_name r, view #last_name r]
+                        )
 
 buildPerson :: PersonForm
             -> Person

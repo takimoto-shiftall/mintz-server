@@ -48,14 +48,14 @@ publish' :: SiteContext
          -> M.Map String VoiceProperties
          -> PublishForm'
          -> Action NoContent
-publish' sc ps voices form = do
+publish' sc ls voices form = do
     case validate form of
         Nothing -> do
             throw $ errorFor err400 (errorsOf @PublishForm form) sc
         Just f -> do
             let v = voice (f :: PublishForm) >>= ((M.!?) voices) >>= return . path
             withContext @'[DB, REDIS, JTALK, CHATBOT] sc $ do
-                let formatter = \p -> audio_url ps ++ p
+                let formatter = \p -> audio_url ls ++ p
                 publishMessage (PublishEntry (message (f :: PublishForm))
                                              (kind (f :: PublishForm))
                                              v
@@ -63,4 +63,5 @@ publish' sc ps voices form = do
                                              (persons (f :: PublishForm))
                                              (extra (f :: PublishForm)))
                                formatter
+                               (default_audio ls)
             return NoContent

@@ -18,11 +18,17 @@ import Mintz.Settings (Database(..))
 
 data LangType = EN | MB deriving (Show, Eq)
 
+langTypeOf :: String -> LangType
+langTypeOf "ja" = MB
+langTypeOf _ = EN
+
 data Label = Label { en_label :: String
                    , mb_label :: String
                    , en_reading :: String
                    , mb_reading :: String
                    } deriving (Show, Read, Eq, Generic)
+
+instance ToJSON Label
 
 labelOf :: String -> (Label -> String)
 labelOf "ja" = mb_label
@@ -48,6 +54,8 @@ instance Convertible SqlValue Label where
 data Lang = Lang { en :: String
                  , mb :: String
                  } deriving (Show, Read, Eq, Generic)
+
+instance ToJSON Lang
 
 langOf :: String -> (Lang -> String)
 langOf "ja" = mb

@@ -12,6 +12,7 @@ module Mintz.Resource.TypeTalk.API where
 import Data.IORef
 import Data.String (fromString)
 import Data.Maybe (catMaybes, maybe)
+import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Time.Clock
 import Data.Extensible
@@ -73,8 +74,10 @@ postMessage :: (With '[TypeTalkBotContext])
 postMessage message accounts = do 
     bot@(TypeTalkBotContext (TypeTalkBot _ topicId)) <- readIORef $ contextOf @TypeTalkBotContext ?cxt
 
+    let message' = L.intercalate " " $ (map ('@':) accounts) ++ [message]
+
     res <- post bot ("/v1/topics/" ++ show topicId)
-                    (object ["message" .= message])
+                    (object ["message" .= message'])
 
     $(logQD' typeTalkTag) ?cxt $ "Reponse for message post: " ++ show res
 

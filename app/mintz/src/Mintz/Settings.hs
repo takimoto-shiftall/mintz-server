@@ -21,7 +21,7 @@ import Mintz.Resource.TypeTalk
 
 newtype Database = Database PostgreSQL deriving (DBSettings)
 
-db = Database (PostgreSQL "postgresql://postgres:postgres@127.0.0.1:15432/mintz" 10)
+db = Database (PostgreSQL "postgresql://postgres:postgres@172.16.147.59:15432/mintz" 10)
 
 type DB = DBContext Database
 type REDIS = RedisPubSubContext
@@ -45,8 +45,11 @@ data DatabaseSettings = DatabaseSettings {
     } deriving (Generic)
 
 data LinkSettings = LinkSettings {
-      icon_url :: String
+      icon_dir :: String
+    , icon_url :: String
     , audio_url :: String
+    , default_icon :: String
+    , default_audio :: String
     } deriving (Generic)
 
 data TypeTalkSettings = TypeTalkSettings {

@@ -4,8 +4,13 @@ module Mintz.Service.Person where
 
 import Data.Proxy
 import Data.IORef
+import System.FilePath
+import System.Directory
+import System.IO
+import Text.Printf
+import qualified Data.ByteString.Lazy as BL
 import Data.Extensible
-import Control.Lens hiding ((:>))
+import Control.Lens hiding ((:>), firstOf)
 import Data.Resource
 import Data.Model.Graph
 import Database.HDBC
@@ -24,9 +29,18 @@ listPersons limit offset = do
     graph <- selectNodes (Proxy :: Proxy PersonList)
                          (Proxy :: Proxy Person)
                          (..?)
-                         (orderBy @Person "id" ASC)
+                         (orderBy @Person "display_order" ASC)
                          (Just (limit, offset))
     return $ values graph
+
+-- m [a] -> (a -> m b) -> m [b]
+
+findIcon :: FilePath
+         -> Person
+         -> IO (Maybe FilePath)
+findIcon dir person = do
+    let path = dir </> iconFile person
+    doesPathExist path >>= \b -> return $ if b then Just path else Nothing
 
 -- TODO
 -- readIORefを毎度呼ぶのが面倒。stmtとか作るのも面倒。
@@ -34,7 +48,7 @@ listPersons limit offset = do
 
 createPerson :: (With '[DB])
              => Person
-             -> IO Integer
+             -> IO Person
 createPerson person = do
     getDialect >>= \d -> lockTables d EXCLUSIVE ["person"]
     conn <- readIORef (contextOf @DB ?cxt) >>= return . connect
@@ -49,4 +63,28 @@ createPerson person = do
 
     execute stmt [toSql pid]
 
-    return pid
+    return p
+
+createIcon :: (With '[DB])
+           => FilePath
+           -> Integer
+           -> BL.ByteString
+           -> IO Bool
+createIcon dir pid icon = do
+    graph <- selectNodes (Proxy :: Proxy PersonList)
+                         (Proxy :: Proxy Person)
+                         ((==?) @Person "id" pid)
+                         (../)
+                         Nothing
+    case (@< graph) <$> firstOf @Person graph of
+        Just person -> do
+            let path = dir </> iconFile person
+            withBinaryFile path WriteMode $ \h -> do
+                BL.hPut h icon
+            return True
+        Nothing -> 
+            return False
+
+iconFile :: Person
+         -> FilePath
+iconFile p = printf "%08d.png" (view #id $ getRecord p)

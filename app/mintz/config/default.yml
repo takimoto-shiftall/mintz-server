@@ -3,8 +3,11 @@ database:
   max_connections: 10
 
 link:
-  icon_url: http://localhost:8001/public/icon/
+  icon_dir: public/icon
+  icon_url: http://localhost:8001/
   audio_url: http://localhost:8001/
+  default_icon: http://localhost:8001/public/icon/default.png
+  default_audio: http://localhost:8001/public/voice/default.mp3
 
 type_talk:
   topic_id: 0
