@@ -11,6 +11,7 @@ module Mintz.Service.Publish (
 ) where
 
 import GHC.Generics
+import Control.Concurrent
 import Data.Proxy
 import Data.IORef
 import Data.String
@@ -79,8 +80,13 @@ publishMessage entry@(PublishEntry { kind = kind', extra = extra', .. }) formatU
     -- Create log of publishing message.
     with @'[DB] $ createLog' entry hash accounts
 
-    -- POST message to TypeTalk with mentioning accounts if any.
-    with @'[CHATBOT] $ postMessage message (catMaybes $ map typeTalkName accounts)
+    (TypeTalkBotContext tt) <- readIORef $ contextOf @CHATBOT ?cxt
+    ttr <- newIORef tt
+
+    -- POST message to TypeTalk in another thread with mentioning accounts if any.
+    forkIO $ do
+        withContext @'[CHATBOT] (ttr `RCons` RNil) $ postMessage message (catMaybes $ map typeTalkName accounts)
+        return ()
 
     -- Publish to Redis according to whether valid audio file is available.
     let url = maybe defaultAudio formatUrl path

@@ -70,3 +70,21 @@ type TopicPost = Record '[
   , "createdAt" :> UTCTime
   , "updatedAt" :> UTCTime
   ]
+
+type Sub'Topic = Record '[
+    "id" >: Int
+  , "name" >: String
+  , "isDirectMessage" >: Bool
+  , "lastPostedAt" >: UTCTime
+  , "createdAt" >: UTCTime
+  , "updatedAt" >: UTCTime
+  ]
+
+type Sub'Post = Record '[
+    "id" >: Int
+  , "topicId" >: Int
+  , "replyTo" >: Maybe Int
+  , "message" >: String
+  , "createdAt" >: UTCTime
+  , "updatedAt" >: UTCTime
+  ]

@@ -78,27 +78,21 @@ outputWave c@(OpenJTalkContext jt) voice text name = do
     return $ if ec == ExitSuccess then Just path else Nothing
 
 waveToMP3 :: FilePath
-          -> Bool
           -> IO (Maybe FilePath)
-waveToMP3 input overwrite = do
+waveToMP3 input = do
     let output = mp3Path input
     exists <- doesPathExist output
-    if not exists || overwrite
-        then do
-            ec <- withCreateProcess (proc "avconv" ["-y", "-i", input, output]) $ \_ _ _ ph -> do
-                waitForProcess ph
-            return $ if ec == ExitSuccess then Just output else Nothing
-        else
-            return $ Just output
+    ec <- withCreateProcess (proc "avconv" ["-y", "-i", input, output]) $ \_ _ _ ph -> do
+        waitForProcess ph
+    return $ if ec == ExitSuccess then Just output else Nothing
 
 outputMP3 :: OpenJTalkContext
           -> Maybe String
           -> String
           -> String
-          -> Bool
           -> IO (Maybe FilePath)
-outputMP3 c voice text name overwrite =
-    runMaybeT $ MaybeT (outputWave c voice text name) >>= (MaybeT . (\p -> waveToMP3 p overwrite <* removeFile p))
+outputMP3 c voice text name =
+    runMaybeT $ MaybeT (outputWave c voice text name) >>= (MaybeT . (\p -> waveToMP3 p <* removeFile p))
 
 instance Resource OpenJTalk where
     type ContextType OpenJTalk = OpenJTalkContext
@@ -123,4 +117,8 @@ execMP3 :: (With '[OpenJTalkContext])
         -> IO (Maybe FilePath)
 execMP3 voice text name overwrite = do
     jtalk <- readIORef $ contextOf @OpenJTalkContext ?cxt
-    outputMP3 jtalk voice text name overwrite
+    let output = mp3Path $ wavePath jtalk name
+    exists <- doesPathExist output
+    if not exists || overwrite
+        then outputMP3 jtalk voice text name 
+        else return $ Just output

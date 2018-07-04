@@ -31,6 +31,7 @@ dependencies:
   - time
   - utf8-string
   - bytestring
+  - text
   - filepath
   - directory
   - case-insensitive
@@ -57,6 +58,9 @@ dependencies:
   - parsec
   - cryptonite
   - process
+  - network
+  - connection
+  - websockets
   - hs-graph
   - hs-resource
   - hs-orm
@@ -81,6 +85,17 @@ executables:
   mintz-exe:
     main:                Main.hs
     source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -ddump-splices
+    dependencies:
+    - mintz
+
+  mintz-daemon:
+    main:                Main.hs
+    source-dirs:         daemon
     ghc-options:
     - -threaded
     - -rtsopts
