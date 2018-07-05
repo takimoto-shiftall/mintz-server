@@ -23,12 +23,14 @@ dependencies:
   - base >= 4.7 && < 5
   - mtl
   - containers
+  - unordered-containers
   - monad-control
   - transformers
   - transformers-base
   - template-haskell
   - safe-exceptions
   - time
+  - scientific
   - utf8-string
   - bytestring
   - text

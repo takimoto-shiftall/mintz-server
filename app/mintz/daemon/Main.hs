@@ -18,9 +18,6 @@ import Network.HTTP.Simple
 import Mintz.Resource.TypeTalk.Auth
 import Mintz.Resource.TypeTalk.Subscribe
 
-clientId = ""
-clientSecret = ""
-
 data PublishForm = PublishForm { message :: String
                                , kind :: String
                                , voice :: Maybe String
@@ -31,9 +28,19 @@ data PublishForm = PublishForm { message :: String
 
 instance ToJSON PublishForm
 
+data SubscriptionSettings = SubscriptionSettings { client_id :: String
+                                                 , client_secret :: String
+                                                 , topics :: [Int]
+                                                 } deriving (Generic)
+
+instance FromJSON SubscriptionSettings
+
 main :: IO ()
 main = do
-    credential <- getCredential clientId clientSecret
+    settings <- decodeFileThrow "config/daemon-develop.yml" :: IO SubscriptionSettings
+
+    credential <- getCredential (client_id settings)
+                                (client_secret settings)
 
     (status, closer) <- subscribe credential $ \msg -> do
         case eitherDecode msg :: Either String SubscriptionMessage of
@@ -41,10 +48,16 @@ main = do
             Right m -> case m of
                 PostMessage t p -> do
                     let msg = view #message p
-                    case runParser parseMessage False "" msg of
-                        Left e -> print e
-                        Right (toPublish, s) -> putStrLn $ (show toPublish) ++ ": " ++ s
-                    --publishMessage msg
+                    if view #topicId p `elem` topics settings
+                        then
+                            case runParser parseMessage False "" msg of
+                                Left e -> print e
+                                Right (toPublish, s) -> do
+                                    --putStrLn $ (show toPublish) ++ ": " ++ s
+                                    if toPublish then publishMessage s
+                                                 else return ()
+                        else
+                            return ()
                 UnknownMessage s -> print s
 
     forkIO $ forever $ do
