@@ -23,6 +23,7 @@ import Data.Extensible
 import Text.Parsec
 import Network.HTTP.Conduit
 import Network.HTTP.Simple
+import qualified Network.HTTP.Client as H
 import Mintz.Resource.TypeTalk.Auth
 import Mintz.Resource.TypeTalk.Subscribe
 
@@ -79,7 +80,7 @@ publishMessage :: String
 publishMessage url msg v = do
     print $ "Publish message: " ++ msg ++ " (voice: " ++ maybe "" id v ++ ")"
     let body = encode $ PublishForm { message = msg
-                                    , kind = "test"
+                                    , kind = "speech"
                                     , voice = v
                                     , channel = "mintz"
                                     , persons = []
@@ -90,7 +91,7 @@ publishMessage url msg v = do
             >>= return . setRequestBody (RequestBodyLBS body)
             >>= return . setRequestHeader "Content-type" ["application/json"]
 
-    res <- httpNoBody req
+    res <- httpNoBody $ req { responseTimeout = H.responseTimeoutNone }
 
     print $ "Response from mintz-server: " ++ show (getResponseStatus res)
 

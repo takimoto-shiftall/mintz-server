@@ -6,7 +6,7 @@ services:
       - ./app/mintz:/mintz
       - mintz_stack:/root/.stack:cached
     working_dir: /mintz
-    command: /root/.local/bin/stack build
+    command: /root/.local/bin/stack build :mintz-daemon
     ports:
       - 18001:8001
     container_name: mintz_server

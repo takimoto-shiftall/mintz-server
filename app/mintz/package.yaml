@@ -37,6 +37,7 @@ dependencies:
   - filepath
   - directory
   - case-insensitive
+  - http-client
   - http-conduit
   - http-media
   - http-api-data

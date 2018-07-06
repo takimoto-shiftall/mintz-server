@@ -80,13 +80,19 @@ publishMessage entry@(PublishEntry { kind = kind', extra = extra', .. }) formatU
     -- Create log of publishing message.
     with @'[DB] $ createLog' entry hash accounts
 
-    (TypeTalkBotContext tt) <- readIORef $ contextOf @CHATBOT ?cxt
-    ttr <- newIORef tt
+    -- FIXME 一時的にkindで区別
+    if not (kind' == "speech")
+        then do
+            (TypeTalkBotContext tt) <- readIORef $ contextOf @CHATBOT ?cxt
+            ttr <- newIORef tt
 
-    -- POST message to TypeTalk in another thread with mentioning accounts if any.
-    forkIO $ do
-        withContext @'[CHATBOT] (ttr `RCons` RNil) $ postMessage message (catMaybes $ map typeTalkName accounts)
-        return ()
+            -- POST message to TypeTalk in another thread with mentioning accounts if any.
+            forkIO $ do
+                withContext @'[CHATBOT] (ttr `RCons` RNil) $ postMessage message (catMaybes $ map typeTalkName accounts)
+                return ()
+            return ()
+        else
+            return ()
 
     -- Publish to Redis according to whether valid audio file is available.
     let url = maybe defaultAudio formatUrl path
