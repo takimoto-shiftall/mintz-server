@@ -2,6 +2,8 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TupleSections #-}
 
+module Configuration where
+
 {-
 -- Need Data.YAML to enable specifying nullability?
 

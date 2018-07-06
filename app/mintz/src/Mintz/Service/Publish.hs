@@ -73,7 +73,7 @@ publishMessage entry@(PublishEntry { kind = kind', extra = extra', .. }) formatU
     -- When the file already exists, just returns its path.
     jtalk@(OpenJTalkContext jr) <- readIORef $ contextOf @JTALK ?cxt
 
-    (exists, hash) <- with @'[DB] $ audioExists message (outDir jr)
+    (exists, hash) <- with @'[DB] $ audioExists message voice (outDir jr)
 
     path <- with @'[JTALK] $ execMP3 voice message hash (not exists)
 
@@ -101,10 +101,11 @@ type AudioHashGraph = Graph PublishLog
 
 audioExists :: (With '[DB])
             => String
+            -> Maybe String
             -> FilePath
             -> IO (Bool, String)
-audioExists message dir = do
-    let audioHash = show $ hashWith SHA1 (fromString message :: B.ByteString)
+audioExists message voice dir = do
+    let audioHash = show $ hashWith SHA1 (fromString (message ++ voice') :: B.ByteString)
 
     graph <- selectNodes (Proxy :: Proxy AudioHashGraph)
                          (Proxy :: Proxy PublishLog)
@@ -112,7 +113,13 @@ audioExists message dir = do
                          (orderBy @PublishLog "id" DESC)
                          (Just (1, 0))
 
-    return (any ((== message) . view #message . getRecord) (values graph :: [PublishLog]), audioHash)
+    return (any match (values graph :: [PublishLog]), audioHash)
+    where
+        voice' = maybe "" id voice
+
+        match :: PublishLog -> Bool
+        match pl = let r = getRecord pl
+                   in view #message r == message && view #voice r == voice'
 
 createLog' :: (With '[DB])
            => PublishEntry

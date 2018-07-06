@@ -11,6 +11,7 @@ import Control.Exception.Safe
 import Control.Monad.IO.Class
 import qualified Data.Map as M
 import Data.Maybe (maybe)
+import qualified Data.Char as C
 import Data.Proxy
 import qualified Data.ByteString.Lazy.UTF8 as UTF8
 import Servant.API
@@ -56,7 +57,7 @@ publish' sc ls voices form = do
             let v = voice (f :: PublishForm) >>= ((M.!?) voices) >>= return . path
             withContext @'[DB, REDIS, JTALK, CHATBOT] sc $ do
                 let formatter = \p -> audio_url ls ++ p
-                publishMessage (PublishEntry (message (f :: PublishForm))
+                publishMessage (PublishEntry (trim $ message (f :: PublishForm))
                                              (kind (f :: PublishForm))
                                              v
                                              (channel (f :: PublishForm))
@@ -65,3 +66,13 @@ publish' sc ls voices form = do
                                formatter
                                (default_audio ls)
             return NoContent
+    where
+        ltrim :: String -> String
+        ltrim [] = []
+        ltrim (c:cs)
+            | C.isSpace c = trim cs
+            | C.isControl c = trim cs
+            | otherwise = c : trim cs
+
+        trim :: String -> String
+        trim s = reverse $ ltrim $ reverse $ ltrim s
