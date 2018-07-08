@@ -69,10 +69,10 @@ publish' sc ls voices form = do
     where
         ltrim :: String -> String
         ltrim [] = []
-        ltrim (c:cs)
-            | C.isSpace c = trim cs
-            | C.isControl c = trim cs
-            | otherwise = c : trim cs
+        ltrim s@(c:cs)
+            | C.isSpace c = ltrim cs
+            | C.isControl c = ltrim cs
+            | otherwise = s
 
         trim :: String -> String
         trim s = reverse $ ltrim $ reverse $ ltrim s

@@ -19,8 +19,10 @@ import Data.Time
 import Data.Maybe (catMaybes, maybe)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as B
+import qualified Data.ByteString.UTF8 as UTF8
 import Data.Aeson
-import Crypto.Hash
+import qualified Crypto.Hash.SHA1 as SHA1
+import qualified Data.ByteString.Base16 as B16
 import Control.Lens hiding ((:>))
 import Data.Extensible
 import Database.Redis
@@ -33,6 +35,7 @@ import Mintz.Resource.Redis
 import Mintz.Resource.OpenJTalk
 import Mintz.Resource.TypeTalk
 import Mintz.Service.Log (createLog)
+import Debug.Trace
 
 data PublishEntry = PublishEntry { message :: String
                                  , kind :: String
@@ -75,6 +78,8 @@ publishMessage entry@(PublishEntry { kind = kind', extra = extra', .. }) formatU
 
     (exists, hash) <- with @'[DB] $ audioExists message voice (outDir jr)
 
+    $(logQD) ?cxt $ "Does audio for " ++ hash ++ " exists? " ++ show exists
+
     path <- with @'[JTALK] $ execMP3 voice message hash (not exists)
 
     -- Create log of publishing message.
@@ -111,13 +116,18 @@ audioExists :: (With '[DB])
             -> FilePath
             -> IO (Bool, String)
 audioExists message voice dir = do
-    let audioHash = show $ hashWith SHA1 (fromString (message ++ voice') :: B.ByteString)
+    --let audioHash = show $ hashWith SHA1 (fromString (message ++ voice') :: B.ByteString)
+    let audioHash = UTF8.toString $ B16.encode $ SHA1.hash (fromString $ message ++ voice')
+
+    $(logQD) ?cxt $ "Audio hash: " ++ audioHash
 
     graph <- selectNodes (Proxy :: Proxy AudioHashGraph)
                          (Proxy :: Proxy PublishLog)
                          ((==?) @PublishLog "audio_hash" audioHash)
                          (orderBy @PublishLog "id" DESC)
                          (Just (1, 0))
+
+    $(logQD) ?cxt $ "Got record matching hash: " ++ show (length (values graph :: [PublishLog]))
 
     return (any match (values graph :: [PublishLog]), audioHash)
     where

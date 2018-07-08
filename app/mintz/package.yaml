@@ -69,6 +69,8 @@ dependencies:
   - hs-orm
   - hs-template
   - hs-ext-servant
+  - cryptohash-sha1
+  - base16-bytestring
 
 default-extensions:
   - DataKinds

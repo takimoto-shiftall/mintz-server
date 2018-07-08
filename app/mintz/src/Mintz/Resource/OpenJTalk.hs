@@ -120,5 +120,9 @@ execMP3 voice text name overwrite = do
     let output = mp3Path $ wavePath jtalk name
     exists <- doesPathExist output
     if not exists || overwrite
-        then outputMP3 jtalk voice text name 
-        else return $ Just output
+        then do
+            logCD ?cxt "Execute generation of sound files."
+            outputMP3 jtalk voice text name 
+        else do
+            logCD ?cxt "File already exists. Sound generation is skipped"
+            return $ Just output
