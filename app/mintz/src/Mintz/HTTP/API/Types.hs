@@ -32,4 +32,4 @@ instance Erroneous APIError where
 instance Erroneous [ValidationError] where
     type ErroneousTypes [ValidationError] = '[JSON]
 
-    buildError org e mt = buildError org (APIError 400 e) mt
+    buildError org e mt = buildError org (APIError 400 (map show e)) mt

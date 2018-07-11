@@ -1,9 +1,11 @@
 publish_url: http://localhost:8001/api/publish
+wechime_url: http://localhost:8001/api/publish/wechime
 client_id: client_id
 client_secret: client_secret
 topics:
   - 0
 speech_key: speech_balloon
+wechime_key: japanese_goblin
 voice_keys:
   angry: "mei_angry"
 maximum_length: 40

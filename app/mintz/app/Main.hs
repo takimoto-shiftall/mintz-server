@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Main where
 
@@ -35,8 +36,9 @@ import Mintz.HTTP.API.Voice
 import Mintz.Resource.Redis
 import Mintz.Resource.OpenJTalk
 import Mintz.Resource.TypeTalk
+import Mintz.Resource.Wechime
 
-type ResourceAPI = (@>) '[DBResource Database, RedisPubSub, OpenJTalk, TypeTalkBot, LoggingResource] SiteKeys
+type ResourceAPI = (@>) '[DBResource Database, RedisPubSub, OpenJTalk, TypeTalkBot, Wechime, LoggingResource] SiteKeys
                     :> ( "site"
                         :> ( PersonSite
                            )
@@ -75,11 +77,19 @@ main = do
     rr <- newIORef $ RedisPubSub (defaultConnectInfo { connectHost = "127.0.0.1", connectPort = PortNumber 6379 })
     tr <- newIORef $ openJTalk settings
     br <- newIORef $ typeTalkBot settings
+    wr <- let (WechimeSettings {..}) = wechime settings
+          in initWechime gpio_dir gpio_chime1 gpio_chime2 gpio_chime12
     dr <- newResource $ let dbs = database settings in Database (PostgreSQL (dsn dbs) (max_connections dbs)) 
 
-    let resources = dr `RCons` rr `RCons` tr `RCons` br `RCons` lr `RCons` RNil
+    let resources = dr `RCons` rr `RCons` tr `RCons` br `RCons` wr `RCons` lr `RCons` RNil
 
-    let contextTypes = Proxy :: Proxy '[ RequestContextEntry SiteKeys '[DBResource Database, RedisPubSub, OpenJTalk, TypeTalkBot, LoggingResource]
+    let contextTypes = Proxy :: Proxy '[ RequestContextEntry SiteKeys '[ DBResource Database
+                                                                       , RedisPubSub
+                                                                       , OpenJTalk
+                                                                       , TypeTalkBot
+                                                                       , Wechime
+                                                                       , LoggingResource
+                                                                       ]
                                        , LinkSettings
                                        , CrossDomainOrigin
                                        , M.Map String VoiceProperties

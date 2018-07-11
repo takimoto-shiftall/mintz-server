@@ -8,6 +8,7 @@
 module Mintz.Service.Publish (
     PublishEntry(..)
   , publishMessage
+  , runWechime
 ) where
 
 import GHC.Generics
@@ -20,7 +21,9 @@ import Data.Maybe (catMaybes, maybe)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as B
 import qualified Data.ByteString.UTF8 as UTF8
+import qualified Data.HashMap.Strict as HM
 import Data.Aeson
+import Data.Aeson.Types
 import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Data.ByteString.Base16 as B16
 import Control.Lens hiding ((:>))
@@ -29,11 +32,12 @@ import Database.Redis
 import Data.Model.Graph
 import Data.Resource
 import Database.ORM
-import Mintz.Settings (DB, REDIS, JTALK, CHATBOT)
+import Mintz.Settings (DB, REDIS, JTALK, CHATBOT, WECHIME)
 import Mintz.Model.Models
 import Mintz.Resource.Redis
 import Mintz.Resource.OpenJTalk
 import Mintz.Resource.TypeTalk
+import Mintz.Resource.Wechime
 import Mintz.Service.Log (createLog)
 import Debug.Trace
 
@@ -56,11 +60,12 @@ instance ToJSON VoicePublish
 
 type PublishGraph = Graph Person'S
 
-publishMessage :: (With '[DB, REDIS, JTALK, CHATBOT])
+publishMessage :: (With '[DB, REDIS, JTALK, CHATBOT, WECHIME])
                => PublishEntry
                -> (String -> String)
                -> String
                -> IO Bool
+publishMessage (PublishEntry { message = "", .. }) _ _ = return False
 publishMessage entry@(PublishEntry { kind = kind', extra = extra', .. }) formatUrl defaultAudio = do
     accounts <- case persons of
         [] -> return []
@@ -99,11 +104,24 @@ publishMessage entry@(PublishEntry { kind = kind', extra = extra', .. }) formatU
         else
             return ()
 
-    -- Publish to Redis according to whether valid audio file is available.
-    let url = maybe defaultAudio formatUrl path
+    case extra' >>= findWechimeParams of
+        Nothing -> do
+            -- FIXME 一時的に直書き
+            if kind' `elem` ["guest", "deliverer", "visitor"]
+                then with @'[WECHIME] $ execChime [Chime1, Chime2]
+                else return ()
+        Just chimes -> with @'[WECHIME] $ execChime chimes
 
-    (RedisPubSubContext conn) <- readIORef $ contextOf @REDIS ?cxt
-    runRedis conn $ publish (fromString channel) $ BL.toStrict (encode (VoicePublish url kind' extra'))
+    -- Publish to Redis according to whether valid audio file is available.
+    if maybe True not (extra' >>= isSilent)
+        then do
+            let url = maybe defaultAudio formatUrl path
+
+            (RedisPubSubContext conn) <- readIORef $ contextOf @REDIS ?cxt
+            runRedis conn $ publish (fromString channel) $ BL.toStrict (encode (VoicePublish url kind' extra'))
+            return ()
+        else
+            logD $ "Silent mode specified, audio is not published to redis."
 
     return True
 
@@ -137,6 +155,11 @@ audioExists message voice dir = do
         match pl = let r = getRecord pl
                    in view #message r == message && view #voice r == voice'
 
+runWechime :: (With '[WECHIME])
+           => [Chime]
+           -> IO ()
+runWechime chimes = execChime chimes
+
 createLog' :: (With '[DB])
            => PublishEntry
            -> String
@@ -155,3 +178,20 @@ createLog' (PublishEntry { kind = kind', .. }) hash ps = do
                    ) :: PublishLog
     graph <- createLog pl ps
     return ()
+
+findWechimeParams :: Object
+                  -> Maybe [Chime]
+findWechimeParams obj = case parse (flip parseField $ "wechime") obj of
+    Data.Aeson.Error e -> Nothing
+    Data.Aeson.Success cs -> Just $ concat $ map toChime cs
+    where
+        toChime :: Int -> [Chime]
+        toChime 1 = [Chime1]
+        toChime 2 = [Chime2]
+        toChime _ = []
+
+isSilent :: Object
+         -> Maybe Bool
+isSilent obj = case parse (flip parseField $ "silent") obj of
+    Data.Aeson.Error e -> Nothing
+    Data.Aeson.Success b -> Just b

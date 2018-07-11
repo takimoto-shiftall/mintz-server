@@ -27,6 +27,7 @@ import Mintz.Settings
 import Ext.Servant.Context
 import Ext.Servant.Validation
 import Mintz.Service.Publish
+import Mintz.Resource.Wechime
 import Mintz.HTTP.API.Types
 
 data PublishForm = PublishForm { message :: String
@@ -37,12 +38,20 @@ data PublishForm = PublishForm { message :: String
                                , extra :: Maybe Object
                                }
 
-$(validatable [''PublishForm])
+data WechimeForm = WechimeForm { chimes :: [Int]
+                               }
 
-type PublishAPI = "publish" :> Use LinkSettings :> Use (M.Map String VoiceProperties)
-                :> ReqBody '[JSON] PublishForm' :> Post '[JSON] NoContent
+$(validatable [''PublishForm, ''WechimeForm])
+
+type PublishAPI = "publish" :>
+                ( Use LinkSettings
+                    :> Use (M.Map String VoiceProperties)
+                    :> ReqBody '[JSON] PublishForm' :> Post '[JSON] NoContent
+             :<|> "wechime" :> ReqBody '[JSON] WechimeForm' :> Post '[JSON] NoContent
+                )
 
 publishAPI sc = publish' sc
+           :<|> wechime' sc
 
 publish' :: SiteContext
          -> LinkSettings
@@ -55,7 +64,7 @@ publish' sc ls voices form = do
             throw $ errorFor err400 (errorsOf @PublishForm form) sc
         Just f -> do
             let v = voice (f :: PublishForm) >>= ((M.!?) voices) >>= return . path
-            withContext @'[DB, REDIS, JTALK, CHATBOT] sc $ do
+            withContext @'[DB, REDIS, JTALK, CHATBOT, WECHIME] sc $ do
                 let formatter = \p -> audio_url ls ++ p
                 publishMessage (PublishEntry (trim $ message (f :: PublishForm))
                                              (kind (f :: PublishForm))
@@ -76,3 +85,20 @@ publish' sc ls voices form = do
 
         trim :: String -> String
         trim s = reverse $ ltrim $ reverse $ ltrim s
+
+wechime' :: SiteContext
+         -> WechimeForm'
+         -> Action NoContent
+wechime' sc form = do
+    case validate form of
+        Nothing -> do
+            throw $ errorFor err400 (errorsOf @WechimeForm form) sc
+        Just f -> do
+            withContext @'[WECHIME] sc $ do
+                runWechime $ concat $ map toChime (chimes f)
+            return NoContent
+    where
+        toChime :: Int -> [Chime]
+        toChime 1 = [Chime1]
+        toChime 2 = [Chime2]
+        toChime _ = []

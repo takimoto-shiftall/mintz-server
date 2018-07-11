@@ -99,7 +99,7 @@ create' :: SiteContext
 create' sc form = do
     case validate form of
         Nothing -> do
-            forM_ (errorsOf @PersonForm form) (logCD @@ sc)
+            forM_ (errorsOf @PersonForm form) ((logCD @@ sc) . show)
             back
         Just f -> do
             (person, _) <- withContext @'[DB] sc $ do

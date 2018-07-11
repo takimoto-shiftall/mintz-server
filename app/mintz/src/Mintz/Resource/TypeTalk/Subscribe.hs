@@ -87,6 +87,7 @@ instance FromJSON SubscriptionMessage where
         (v .: "type" :: Parser String) >>= \t ->
             case t of
                 "postMessage" -> (v .: "data" :: Parser Value) >>= parsePostMessage
+                "updateMessage" -> (v .: "data" :: Parser Value) >>= parsePostMessage
                 _ -> return $ UnknownMessage t
         where
             parsePostMessage :: Value -> Parser SubscriptionMessage

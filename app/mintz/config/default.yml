@@ -24,3 +24,9 @@ open_jtalk:
     voice_key:
       path: path to voice file under voice_dir
       description: text explaining the feature of the voice
+
+wechime:
+  gpio_dir: path to directory of GPIO virtual files
+  gpio_chime1: the number of GPIO for wechime1
+  gpio_chime2: the number of GPIO for wechime2
+  gpio_chime12: the number of GPIO for wechime1 and wechime2
