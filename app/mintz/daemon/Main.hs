@@ -10,10 +10,11 @@ import Control.Monad
 import Control.Concurrent
 import Control.Concurrent.MVar
 import Control.Exception.Safe hiding (try)
-import Data.Maybe (maybe)
+import Data.Maybe (maybe, catMaybes)
 import Data.Either (either)
 import Data.String
 import Data.Monoid
+import Data.IORef
 import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.HashMap.Strict as HM
@@ -21,12 +22,15 @@ import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as BL
 import Data.Aeson
 import Data.Yaml hiding (encode)
+import Control.Monad.Logger
+import System.Log.FastLogger
 import Control.Lens
 import Data.Extensible
 import Text.Parsec
 import Network.HTTP.Conduit
 import Network.HTTP.Simple
 import qualified Network.HTTP.Client as H
+import Data.Resource
 import Mintz.Resource.TypeTalk.Auth
 import Mintz.Resource.TypeTalk.Subscribe
 
@@ -53,6 +57,7 @@ data SubscriptionSettings = SubscriptionSettings { publish_url :: String
                                                  , client_secret :: String
                                                  , topics :: [Int]
                                                  , speech_key :: String
+                                                 , silent_key :: String
                                                  , wechime_key :: String
                                                  , voice_keys :: M.Map String String
                                                  , maximum_length :: Maybe Int
@@ -62,20 +67,27 @@ instance FromJSON SubscriptionSettings
 
 main :: IO ()
 main = do
-    print "mintz-daemon launches..."
+    print "mintz-daemon has launched..."
 
     settings <- decodeFileEither "config/daemon-develop.yml" >>= either throw return
 
-    credential <- getCredential (fromString $ client_id settings)
-                                (fromString $ client_secret settings)
+    lr <- newLoggingResource [(anyTag, LevelDebug, LogStdout defaultBufSize, Nothing)] >>= newIORef
+    tr <- newIORef $ TypeTalkSubscription (client_id settings) (client_secret settings)
 
-    (status, closer) <- subscribe credential $ \msg -> do
-        case eitherDecode msg :: Either String SubscriptionMessage of
-            Left e -> print e
-            Right m -> case makeRequest settings m of
-                        Just (url, body) -> do
-                            publishMessage url body
-                        _ -> return ()
+    let resources = tr `RCons` lr `RCons` RNil
+
+    ((status, closer), _) <- withContext @'[SubscriptionContext] resources $ do
+        logD $ "Connection established. Subscription has started..."
+
+        let pong = logD "Pong arrived"
+
+        (`forkSubscription` pong) $ \msg -> do
+            case eitherDecode msg :: Either String SubscriptionMessage of
+                Left e -> logD $ show e
+                Right m -> case makeRequest settings m of
+                    Just (url, body) -> do
+                        publishMessage url body
+                    _ -> return ()
 
     forkIO $ forever $ do
         command <- getLine
@@ -87,7 +99,8 @@ main = do
 
     print "shutdown mintz-daemon"
 
-publishMessage :: String
+publishMessage :: (With '[SubscriptionContext])
+               => String
                -> BL.ByteString
                -> IO ()
 publishMessage url body = do
@@ -96,12 +109,13 @@ publishMessage url body = do
             >>= return . setRequestBody (RequestBodyLBS body)
             >>= return . setRequestHeader "Content-type" ["application/json"]
 
+    logD $ "Send request to mintz-server:"
+    logD $ show req
+
     res <- httpNoBody $ req { responseTimeout = H.responseTimeoutNone }
 
-    print req
-    print body
-
-    print $ "Response from mintz-server: " ++ show (getResponseStatus res)
+    logD $ "Response was received from mintz-server:"
+    logD $ show (getResponseStatus res)
 
 makeRequest :: SubscriptionSettings
             -> SubscriptionMessage
@@ -138,9 +152,10 @@ toPublishForm settings msg keys
     where
         maxlen = maybe defaultMaximumLength id (maximum_length settings)
         voice' = getFirst $ mconcat $ map (First . (voice_keys settings M.!?)) keys
-        extra' = if wechime_key settings `elem` keys
-                    then Just $ HM.fromList [("wechime", toJSONList [1 :: Int])]
-                    else Nothing
+        extra' = Just $ HM.fromList
+                      $ catMaybes [ wechime_key settings `L.elemIndex` keys >> Just ("wechime", toJSONList [1 :: Int])
+                                  , silent_key settings `L.elemIndex` keys >> Just ("silent", Bool True)
+                                  ]
 
 toWechimeForm :: SubscriptionSettings
               -> String
@@ -149,22 +164,6 @@ toWechimeForm :: SubscriptionSettings
 toWechimeForm settings msg keys
     | wechime_key settings `elem` keys = Just (wechime_url settings, WechimeForm [1])
     | otherwise = Nothing
-
---isPublishable :: SubscriptionSettings
---              -> SubscriptionMessage
---              -> Maybe (String, Maybe String, Bool)
---isPublishable settings (PostMessage _ p) = do
---    msg <- if view #topicId p `elem` topics settings then Just (view #message p) else Nothing
---    case runParser parseMessage [] "" msg of
---            Left e -> Nothing
---            Right (msg', keys) -> if not (speech_key settings `elem` keys) then Nothing else do 
---                m <- let maxlen = maybe defaultMaximumLength id (maximum_length settings)
---                     in if length msg' <= maxlen then return msg' else Nothing
---                return ( m
---                       , getFirst $ mconcat $ map (First . (voice_keys settings M.!?)) keys
---                       , wechime_key settings `elem` keys
---                       )
---isPublishable _ _ = Nothing
 
 parseMessage :: Parsec String [String] (String, [String])
 parseMessage = do

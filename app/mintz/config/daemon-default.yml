@@ -5,6 +5,7 @@ client_secret: client_secret
 topics:
   - 0
 speech_key: speech_balloon
+silent_key: thought_balloon
 wechime_key: japanese_goblin
 voice_keys:
   angry: "mei_angry"
