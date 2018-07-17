@@ -61,7 +61,7 @@ publish' :: SiteContext
 publish' sc ls voices form = do
     case validate form of
         Nothing -> do
-            throw $ errorFor err400 (errorsOf @PublishForm form) sc
+            throw $ errorFor err400 (errorsOf form) sc
         Just f -> do
             let v = voice (f :: PublishForm) >>= ((M.!?) voices) >>= return . path
             withContext @'[DB, REDIS, JTALK, CHATBOT, WECHIME] sc $ do
@@ -92,7 +92,7 @@ wechime' :: SiteContext
 wechime' sc form = do
     case validate form of
         Nothing -> do
-            throw $ errorFor err400 (errorsOf @WechimeForm form) sc
+            throw $ errorFor err400 (errorsOf form) sc
         Just f -> do
             withContext @'[WECHIME] sc $ do
                 runWechime $ concat $ map toChime (chimes f)
