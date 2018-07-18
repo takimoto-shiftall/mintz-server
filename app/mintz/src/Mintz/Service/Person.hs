@@ -65,6 +65,16 @@ createPerson person = do
 
     return p
 
+type UpdatePerson = "person" :// Record (Person' ^- '["display_order"])
+
+updatePerson :: (With '[DB])
+             => UpdatePerson
+             -> IO ()
+updatePerson person = do
+    let (graph, _) = person +< (newGraph :: Graph UpdatePerson)
+    restoreGraph graph
+    return ()
+
 createIcon :: (With '[DB])
            => FilePath
            -> Integer

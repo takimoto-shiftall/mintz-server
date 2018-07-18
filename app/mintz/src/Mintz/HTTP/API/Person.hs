@@ -63,7 +63,8 @@ type PersonAPI = "person" :> Use LinkSettings :>
                           :> Get '[JSON] Persons
             :<|> ReqBody '[JSON] PersonForm' :> Post '[JSON] Person
             :<|> Capture "id" Integer :>
-                   ( "icon" :> ReqBody '[OctetStream] BL.ByteString :> Post '[JSON] ()
+                   ( ReqBody '[JSON] PersonForm' :> Put '[JSON] NoContent
+                :<|> "icon" :> ReqBody '[OctetStream] BL.ByteString :> Post '[JSON] ()
                    )
                )
 
@@ -83,7 +84,10 @@ instance ToJSON Persons
 
 personAPI sc link = index' sc link
                :<|> create' sc link
-               :<|> addIcon' sc link
+               :<|> identified
+    where
+        identified pid = update' sc link pid
+                    :<|> addIcon' sc link pid
 
 index' :: SiteContext
        -> LinkSettings
@@ -119,14 +123,25 @@ create' :: SiteContext
         -> PersonForm'
         -> Action Person
 create' sc link form = do
-    case validate form of
-        Nothing -> do
-            --throwError $ errorFor err400 (APIError 400 (errorsOf form)) sc
-            throw err400
-        Just f -> do
-            (person, _) <- withContext @'[DB] sc $ do
-                createPerson (buildPerson f)
-            return person
+    f <- validateOr400 sc form
+    (person, _) <- withContext @'[DB] sc $ do
+        createPerson (buildPerson f)
+    return person
+
+update' :: SiteContext
+        -> LinkSettings
+        -> Integer
+        -> PersonForm'
+        -> Action NoContent
+update' sc link pid form = do
+    f <- validateOr400 sc form
+    withContext @'[DB] sc $ do
+        let person = Model (
+                let r = shrink $ getRecord $ buildPerson f
+                in set #id pid r
+                ) :: UpdatePerson
+        updatePerson (Model (shrink $ getRecord $ buildPerson f) :: UpdatePerson)
+    return NoContent
 
 addIcon' :: SiteContext
          -> LinkSettings

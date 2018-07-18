@@ -60,6 +60,7 @@ data SubscriptionSettings = SubscriptionSettings { publish_url :: String
                                                  , silent_key :: String
                                                  , wechime_key :: String
                                                  , voice_keys :: M.Map String String
+                                                 , jingle_keys :: M.Map String String
                                                  , maximum_length :: Maybe Int
                                                  } deriving (Generic)
 
@@ -79,7 +80,8 @@ main = do
     ((status, closer), _) <- withContext @'[SubscriptionContext] resources $ do
         logD $ "Connection established. Subscription has started..."
 
-        let pong = logD "Pong arrived"
+        --let pong = logD "Pong arrived"
+        let pong = return ()
 
         (`forkSubscription` pong) $ \msg -> do
             case eitherDecode msg :: Either String SubscriptionMessage of
@@ -151,10 +153,12 @@ toPublishForm settings msg keys
     | otherwise = Nothing
     where
         maxlen = maybe defaultMaximumLength id (maximum_length settings)
+        jingle = L.find (`M.member` jingle_keys settings) keys
         voice' = getFirst $ mconcat $ map (First . (voice_keys settings M.!?)) keys
         extra' = Just $ HM.fromList
                       $ catMaybes [ wechime_key settings `L.elemIndex` keys >> Just ("wechime", toJSONList [1 :: Int])
                                   , silent_key settings `L.elemIndex` keys >> Just ("silent", Bool True)
+                                  , L.find (`M.member` jingle_keys settings) keys >>= return . ("jingle",) . String . T.pack
                                   ]
 
 toWechimeForm :: SubscriptionSettings
@@ -173,10 +177,13 @@ parseMessage = do
         normal :: Parsec String u String
         normal = anyChar >>= return . (:[])
 
+        eofc :: Parsec String u Char
+        eofc = eof >> return ' '
+
         urlike :: Parsec String u String
         urlike = do
             sequence [string "http", option "" (string "s"), string "://"]
-            manyTill anyChar (try $ lookAhead (space <|> oneOf "\\'|`^\"<>(){}[]"))
+            manyTill anyChar (try $ lookAhead (space <|> oneOf "\\'|`^\"<>(){}[]" <|> eofc))
             return ""
 
         mention :: Parsec String [String] String
@@ -195,4 +202,4 @@ parseMessage = do
             char ':'
             spaces
             modifyState (t :)
-            return ""
+            return " "

@@ -9,4 +9,6 @@ silent_key: thought_balloon
 wechime_key: japanese_goblin
 voice_keys:
   angry: "mei_angry"
+jingle_keys:
+  bell: "bell01"
 maximum_length: 40

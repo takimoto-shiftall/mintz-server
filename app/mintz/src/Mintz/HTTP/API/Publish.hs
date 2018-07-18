@@ -26,9 +26,21 @@ import Ext.Servant.Context
 import Mintz.Settings
 import Ext.Servant.Context
 import Ext.Servant.Validation
+import Ext.Servant.Verifiers
 import Mintz.Service.Publish
 import Mintz.Resource.Wechime
 import Mintz.HTTP.API.Types
+
+type PublishMessage = String :? '[Length String 1 1024]
+
+data MessageFormatter
+
+instance Verifier MessageFormatter where
+    type VerifiableType MessageFormatter = String
+    type VerifierSpec MessageFormatter = '[]
+
+    verifierSpec _ = []
+    verify _ msg = Right msg -- TODO 
 
 data PublishForm = PublishForm { message :: String
                                , kind :: String
@@ -59,22 +71,19 @@ publish' :: SiteContext
          -> PublishForm'
          -> Action NoContent
 publish' sc ls voices form = do
-    case validate form of
-        Nothing -> do
-            throw $ errorFor err400 (errorsOf form) sc
-        Just f -> do
-            let v = voice (f :: PublishForm) >>= ((M.!?) voices) >>= return . path
-            withContext @'[DB, REDIS, JTALK, CHATBOT, WECHIME] sc $ do
-                let formatter = \p -> audio_url ls ++ p
-                publishMessage (PublishEntry (trim $ message (f :: PublishForm))
-                                             (kind (f :: PublishForm))
-                                             v
-                                             (channel (f :: PublishForm))
-                                             (persons (f :: PublishForm))
-                                             (extra (f :: PublishForm)))
-                               formatter
-                               (default_audio ls)
-            return NoContent
+    f <- validateOr400 sc form
+    let v = voice (f :: PublishForm) >>= ((M.!?) voices) >>= return . path
+    withContext @'[DB, REDIS, JTALK, CHATBOT, WECHIME] sc $ do
+        let formatter = \p -> audio_url ls ++ p
+        publishMessage (PublishEntry (trim $ message (f :: PublishForm))
+                                        (kind (f :: PublishForm))
+                                        v
+                                        (channel (f :: PublishForm))
+                                        (persons (f :: PublishForm))
+                                        (extra (f :: PublishForm)))
+                        formatter
+                        (default_audio ls)
+    return NoContent
     where
         ltrim :: String -> String
         ltrim [] = []
@@ -90,13 +99,10 @@ wechime' :: SiteContext
          -> WechimeForm'
          -> Action NoContent
 wechime' sc form = do
-    case validate form of
-        Nothing -> do
-            throw $ errorFor err400 (errorsOf form) sc
-        Just f -> do
-            withContext @'[WECHIME] sc $ do
-                runWechime $ concat $ map toChime (chimes f)
-            return NoContent
+    f <- validateOr400 sc form
+    withContext @'[WECHIME] sc $ do
+        runWechime $ concat $ map toChime (chimes f)
+    return NoContent
     where
         toChime :: Int -> [Chime]
         toChime 1 = [Chime1]
