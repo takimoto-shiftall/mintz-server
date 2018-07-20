@@ -31,7 +31,11 @@ import Mintz.Service.Publish
 import Mintz.Resource.Wechime
 import Mintz.HTTP.API.Types
 
-type PublishMessage = String :? '[Length String 1 1024]
+-- ----------------------------------------------------------------
+-- Data types.
+-- ----------------------------------------------------------------
+
+type PublishMessage = String :? '[Length String 1 1024, MessageFormatter]
 
 data MessageFormatter
 
@@ -39,13 +43,28 @@ instance Verifier MessageFormatter where
     type VerifiableType MessageFormatter = String
     type VerifierSpec MessageFormatter = '[]
 
-    verifierSpec _ = []
-    verify _ msg = Right msg -- TODO 
+    verifierSpec _ = ("publish message", ANil)
 
-data PublishForm = PublishForm { message :: String
-                               , kind :: String
-                               , voice :: Maybe String
-                               , channel :: String
+    verify _ msg = Right $ trim msg
+        where
+            ltrim :: String -> String
+            ltrim [] = []
+            ltrim s@(c:cs)
+                | C.isSpace c = ltrim cs
+                | C.isControl c = ltrim cs
+                | otherwise = s
+
+            trim :: String -> String
+            trim s = reverse $ ltrim $ reverse $ ltrim s
+
+-- ----------------------------------------------------------------
+-- Forms
+-- ----------------------------------------------------------------
+
+data PublishForm = PublishForm { message :: PublishMessage
+                               , kind :: String :? '[Length String 0 64]
+                               , voice :: Maybe (String :? '[Length String 0 32])
+                               , channel :: String :? '[Length String 1 32]
                                , persons :: [Int]
                                , extra :: Maybe Object
                                }
@@ -54,6 +73,10 @@ data WechimeForm = WechimeForm { chimes :: [Int]
                                }
 
 $(validatable [''PublishForm, ''WechimeForm])
+
+-- ----------------------------------------------------------------
+-- API
+-- ----------------------------------------------------------------
 
 type PublishAPI = "publish" :>
                 ( Use LinkSettings
@@ -65,6 +88,10 @@ type PublishAPI = "publish" :>
 publishAPI sc = publish' sc
            :<|> wechime' sc
 
+-- ----------------------------------------------------------------
+-- Handlers
+-- ----------------------------------------------------------------
+
 publish' :: SiteContext
          -> LinkSettings
          -> M.Map String VoiceProperties
@@ -72,17 +99,16 @@ publish' :: SiteContext
          -> Action NoContent
 publish' sc ls voices form = do
     f <- validateOr400 sc form
-    let v = voice (f :: PublishForm) >>= ((M.!?) voices) >>= return . path
+    let v = (.!) @PublishForm voice f >>= ((M.!?) voices) >>= return . path
     withContext @'[DB, REDIS, JTALK, CHATBOT, WECHIME] sc $ do
         let formatter = \p -> audio_url ls ++ p
-        publishMessage (PublishEntry (trim $ message (f :: PublishForm))
-                                        (kind (f :: PublishForm))
-                                        v
-                                        (channel (f :: PublishForm))
-                                        (persons (f :: PublishForm))
-                                        (extra (f :: PublishForm)))
-                        formatter
-                        (default_audio ls)
+        publishMessage (PublishEntry ((.!) @PublishForm message f)
+                                     ((.!) @PublishForm kind f)
+                                     v
+                                     ((.!) @PublishForm channel f)
+                                     ((.!) @PublishForm persons f)
+                                     ((.!) @PublishForm extra f)
+                       ) formatter (default_audio ls)
     return NoContent
     where
         ltrim :: String -> String

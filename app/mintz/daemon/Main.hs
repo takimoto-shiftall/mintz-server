@@ -184,7 +184,7 @@ parseMessage = do
         urlike = do
             sequence [string "http", option "" (string "s"), string "://"]
             manyTill anyChar (try $ lookAhead (space <|> oneOf "\\'|`^\"<>(){}[]" <|> eofc))
-            return ""
+            return " "
 
         mention :: Parsec String [String] String
         mention = do

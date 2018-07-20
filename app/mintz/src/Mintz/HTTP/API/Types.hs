@@ -1,16 +1,25 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Mintz.HTTP.API.Types where
 
 import GHC.Generics
+import GHC.TypeLits
 import Data.String
+import Data.Proxy
 import Data.Aeson
+import qualified Data.Text as T
 import Network.HTTP.Media
 import Servant.API
 import Servant.Server
 import Ext.Servant.Context
 import Ext.Servant.Validation
+
+data Singular (key :: Symbol) a = Singular a
+
+instance (KnownSymbol key, ToJSON a) => ToJSON (Singular key a) where
+    toJSON (Singular v) = object [T.pack (symbolVal (Proxy :: Proxy key)) .= toJSON v]
 
 type ErrorCode = Int
 

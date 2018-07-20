@@ -63,7 +63,9 @@ type PersonAPI = "person" :> Use LinkSettings :>
                           :> Get '[JSON] Persons
             :<|> ReqBody '[JSON] PersonForm' :> Post '[JSON] Person
             :<|> Capture "id" Integer :>
-                   ( ReqBody '[JSON] PersonForm' :> Put '[JSON] NoContent
+                   ( QueryParam "lang" String
+                        :> Get '[JSON] (Singular "person" PersonItem)
+                :<|> ReqBody '[JSON] PersonForm' :> Put '[JSON] NoContent
                 :<|> "icon" :> ReqBody '[OctetStream] BL.ByteString :> Post '[JSON] ()
                    )
                )
@@ -86,7 +88,8 @@ personAPI sc link = index' sc link
                :<|> create' sc link
                :<|> identified
     where
-        identified pid = update' sc link pid
+        identified pid = detail' sc link pid
+                    :<|> update' sc link pid
                     :<|> addIcon' sc link pid
 
 index' :: SiteContext
@@ -101,6 +104,21 @@ index' sc link limit offset lang = do
     icons <- mapM (findIcon $ icon_dir link) persons
     let lang' = maybe defaultLang Prelude.id lang
     return $ Persons $ map (model2Item link lang') $ zip persons icons
+
+detail' :: SiteContext
+        -> LinkSettings
+        -> Integer
+        -> Maybe String
+        -> Action (Singular "person" PersonItem)
+detail' sc link pid lang = do
+    (person, _) <- withContext @'[DB] sc $ do
+        getPerson pid
+    case person of
+        Nothing -> throw err404
+        Just p -> do 
+            let lang' = maybe defaultLang Prelude.id lang
+            icon <- findIcon (icon_dir link) p
+            return $ Singular $ model2Item link lang' (p, icon)
 
 model2Item :: LinkSettings
            -> String

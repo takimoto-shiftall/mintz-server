@@ -83,9 +83,11 @@ publishMessage entry@(PublishEntry { kind = kind', extra = extra', .. }) formatU
 
     (exists, hash) <- with @'[DB] $ audioExists message voice (outDir jr)
 
+    let voiceMessage = unwords $ lines message
+
     $(logQD) ?cxt $ "Does audio for " ++ hash ++ " exists? " ++ show exists
 
-    path <- with @'[JTALK] $ execMP3 voice message hash (not exists)
+    path <- with @'[JTALK] $ execMP3 voice voiceMessage hash (not exists)
 
     -- Create log of publishing message.
     with @'[DB] $ createLog' entry hash accounts

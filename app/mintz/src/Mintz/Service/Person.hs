@@ -33,6 +33,17 @@ listPersons limit offset = do
                          (Just (limit, offset))
     return $ values graph
 
+getPerson :: (With '[DB])
+          => Integer
+          -> IO (Maybe Person)
+getPerson pid = do
+    graph <- selectNodes (Proxy :: Proxy PersonList)
+                         (Proxy :: Proxy Person)
+                         ((==?) @Person "id" pid)
+                         (../)
+                         Nothing
+    return $ (@< graph) <$> firstOf @Person graph
+
 -- m [a] -> (a -> m b) -> m [b]
 
 findIcon :: FilePath
