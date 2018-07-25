@@ -61,7 +61,7 @@ type PersonAPI = "person" :> Use LinkSettings :>
                           :> QueryParam "offset" Int
                           :> QueryParam "lang" String
                           :> Get '[JSON] Persons
-            :<|> ReqBody '[JSON] PersonForm' :> Post '[JSON] Person
+            :<|> ReqBody '[JSON] PersonForm' :> Post '[JSON] ((=+)Person)
             :<|> Capture "id" Integer :>
                    ( QueryParam "lang" String
                         :> Get '[JSON] (Singular "person" PersonItem)
@@ -125,25 +125,24 @@ model2Item :: LinkSettings
            -> (Person, Maybe FilePath)
            -> PersonItem
 model2Item link lang (p, icon) =
-    let r = getRecord p
-        (nm, rdg) = nameAndReading p lang
+    let (nm, rdg) = nameAndReading p lang
         iconUrl = maybe (default_icon link) ((icon_url link ++)) icon
-    in PersonItem { id = view #id r
+    in PersonItem { id = view #id p
                   , name = nm
                   , reading = rdg
-                  , nickname = (labelOf lang) (view #nickname r)
+                  , nickname = (labelOf lang) (view #nickname p)
                   , icon = iconUrl
-                  , description = (langOf lang) (view #description r)
+                  , description = (langOf lang) (view #description p)
                   }
 
 create' :: SiteContext
         -> LinkSettings
         -> PersonForm'
-        -> Action Person
+        -> Action ((=+)Person)
 create' sc link form = do
     f <- validateOr400 sc form
     (person, _) <- withContext @'[DB] sc $ do
-        createPerson (buildPerson f)
+        createPerson (buildPerson f ~/ Prelude.id)
     return person
 
 update' :: SiteContext
@@ -154,11 +153,8 @@ update' :: SiteContext
 update' sc link pid form = do
     f <- validateOr400 sc form
     withContext @'[DB] sc $ do
-        let person = Model (
-                let r = shrink $ getRecord $ buildPerson f
-                in set #id pid r
-                ) :: UpdatePerson
-        updatePerson (Model (shrink $ getRecord $ buildPerson f) :: UpdatePerson)
+        let person = buildPerson f ~/ (set #id pid . shrink)
+        updatePerson person
     return NoContent
 
 addIcon' :: SiteContext

@@ -16,20 +16,13 @@ import Mintz.Settings (db)
 
 -- version: 20180701_213452
 
-$(declareColumns db "person" "Person'")
-$(declareColumns db "company" "Company'")
-$(declareColumns db "employment" "Employment'")
-$(declareColumns db "department" "Department'")
-$(declareColumns db "employee_department" "EmployeeDepartment'")
-$(declareColumns db "publish_log" "PublishLog'")
--- TODO 外部キーだけだとkindが[*]になってしまう。
--- $(declareColumns db "called_person" "CalledPerson'")
-
-type Person = "person" :++ Record Person'
-type Person'S = "person" :## Record Person'
-
-type PublishLog = "publish_log" :++ Record PublishLog'
-type CalledPerson = "called_person" :++ Record ('[] :: [Assoc Symbol *])
+$(declareModels db "person" "Person")
+$(declareModels db "company" "Company")
+$(declareModels db "employment" "Employment")
+$(declareModels db "department" "Department")
+$(declareModels db "employee_department" "EmployeeDepartment")
+$(declareModels db "publish_log" "PublishLog")
+$(declareModels db "called_person" "CalledPerson")
 
 typeTalkName :: (RecordWrapper p, Associate "notifications" String (RW'Type p))
              => p

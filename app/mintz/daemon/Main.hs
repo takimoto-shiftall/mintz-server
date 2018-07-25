@@ -113,6 +113,7 @@ publishMessage url body = do
 
     logD $ "Send request to mintz-server:"
     logD $ show req
+    logD $ show body
 
     res <- httpNoBody $ req { responseTimeout = H.responseTimeoutNone }
 
@@ -153,12 +154,12 @@ toPublishForm settings msg keys
     | otherwise = Nothing
     where
         maxlen = maybe defaultMaximumLength id (maximum_length settings)
-        jingle = L.find (`M.member` jingle_keys settings) keys
+        jingle = L.find (`M.member` jingle_keys settings) keys >>= (jingle_keys settings M.!?)
         voice' = getFirst $ mconcat $ map (First . (voice_keys settings M.!?)) keys
         extra' = Just $ HM.fromList
                       $ catMaybes [ wechime_key settings `L.elemIndex` keys >> Just ("wechime", toJSONList [1 :: Int])
                                   , silent_key settings `L.elemIndex` keys >> Just ("silent", Bool True)
-                                  , L.find (`M.member` jingle_keys settings) keys >>= return . ("jingle",) . String . T.pack
+                                  , jingle >>= return . ("jingle",) . String . T.pack
                                   ]
 
 toWechimeForm :: SubscriptionSettings

@@ -43,7 +43,7 @@ type ResourceAPI = (@>) '[DBResource Database, RedisPubSub, OpenJTalk, TypeTalkB
                         :> ( PersonSite
                            )
                     :<|> "api"
-                        -- :> CrossDomain '[ 'GET, 'POST, 'PUT, 'DELETE, 'OPTIONS ]
+                        :> CrossDomain '[ 'GET, 'POST, 'PUT, 'DELETE, 'OPTIONS ]
                         :> ( PublishAPI
                         :<|> PersonAPI
                         :<|> VoiceAPI
@@ -111,5 +111,5 @@ main = do
                           (linkContext :. crossDomainContext :. voiceProperties :. EmptyContext)
                           (rs :<|> serveDirectoryWebApp "public")
 
-    -- Warp.run 8001 $ cors (const $ Just policy) $ provideOptions (Proxy :: Proxy AllAPI) $ app
+    --Warp.run 8001 $ cors (const $ Just policy) $ provideOptions (Proxy :: Proxy AllAPI) $ app
     Warp.run 8001 app

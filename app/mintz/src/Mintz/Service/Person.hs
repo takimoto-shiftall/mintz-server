@@ -19,84 +19,71 @@ import Database.ORM.Dialect.PostgreSQL
 import Mintz.Model.Models
 import Mintz.Settings (DB)
 
-type PersonList = Graph Person
-
+-- | Returns a list of ordered persons in specified range.
 listPersons :: (With '[DB])
-            => Int
-            -> Int
-            -> IO [Person]
+            => Int -- ^ Limit count of persons.
+            -> Int -- ^ Offset of the order.
+            -> IO [Person] -- ^ List of ordered persons.
 listPersons limit offset = do
-    graph <- selectNodes (Proxy :: Proxy PersonList)
+    graph <- selectNodes (Proxy :: Proxy (Graph Person))
                          (Proxy :: Proxy Person)
                          (..?)
                          (orderBy @Person "display_order" ASC)
                          (Just (limit, offset))
     return $ values graph
 
+-- | Returns a person of specified ID if exists.
 getPerson :: (With '[DB])
-          => Integer
-          -> IO (Maybe Person)
+          => Integer -- ^ Person ID.
+          -> IO (Maybe Person) -- ^ Person of the ID.
 getPerson pid = do
-    graph <- selectNodes (Proxy :: Proxy PersonList)
-                         (Proxy :: Proxy Person)
-                         ((==?) @Person "id" pid)
-                         (../)
-                         Nothing
+    graph <- fetchOne @(Graph Person) pid
     return $ (@< graph) <$> firstOf @Person graph
 
--- m [a] -> (a -> m b) -> m [b]
-
-findIcon :: FilePath
-         -> Person
-         -> IO (Maybe FilePath)
+-- | Returns a path to the icon of specified person.
+findIcon :: FilePath -- ^ Path to the directory containing icons.
+         -> Person -- ^ Icon owner person.
+         -> IO (Maybe FilePath) -- ^ Path to the icon file if exists.
 findIcon dir person = do
     let path = dir </> iconFile person
     doesPathExist path >>= \b -> return $ if b then Just path else Nothing
 
--- TODO
--- readIORefを毎度呼ぶのが面倒。stmtとか作るのも面倒。
--- getRecordしないとlensアクセスできないのが面倒。
-
+-- | Creates new person.
 createPerson :: (With '[DB])
-             => Person
-             -> IO Person
+             => (=+)Person -- ^ Person to create having its properties.
+             -> IO ((=+)Person) -- ^ Created person having newly assigned ID.
 createPerson person = do
     getDialect >>= \d -> lockTables d EXCLUSIVE ["person"]
-    conn <- readIORef (contextOf @DB ?cxt) >>= return . connect
 
-    p <- insertRecord person
+    p <- insertOne person
 
-    let pid = view #id (getRecord p)
-
-    stmt <- prepare conn "UPDATE person \
-                         \SET display_order = (SELECT COALESCE(MAX(display_order)+1, 1) FROM person) \
-                         \WHERE id = ?"
-
-    execute stmt [toSql pid]
+    executeSQL_ "UPDATE person \
+                \SET display_order = (SELECT COALESCE(MAX(display_order)+1, 1) FROM person) \
+                \WHERE id = ?"
+                $ view #id p
 
     return p
 
-type UpdatePerson = "person" :// Record (Person' ^- '["display_order"])
+type UpdatePerson = (=/)Person :^- '["display_order"]
 
+-- | Updates an existing person.
 updatePerson :: (With '[DB])
-             => UpdatePerson
-             -> IO ()
+             => UpdatePerson -- ^ Person to update.
+             -> IO () -- ^ Returns nothing.
 updatePerson person = do
-    let (graph, _) = person +< (newGraph :: Graph UpdatePerson)
-    restoreGraph graph
-    return ()
+    updateOne person
 
+-- | Create icon file of specified person.
+--
+-- Although this system can use icon in PNG format, this function does not check data format.
+-- Therefore, this function returns @True@ even if the data format is not PNG.
 createIcon :: (With '[DB])
-           => FilePath
-           -> Integer
-           -> BL.ByteString
-           -> IO Bool
+           => FilePath -- ^ Path of directory containing icons.
+           -> Integer -- ^ Person ID.
+           -> BL.ByteString -- ^ Icon data in PNG format.
+           -> IO Bool -- ^ True when icon is created successfully.
 createIcon dir pid icon = do
-    graph <- selectNodes (Proxy :: Proxy PersonList)
-                         (Proxy :: Proxy Person)
-                         ((==?) @Person "id" pid)
-                         (../)
-                         Nothing
+    graph <- fetchOne @(Graph Person) pid
     case (@< graph) <$> firstOf @Person graph of
         Just person -> do
             let path = dir </> iconFile person
@@ -106,6 +93,11 @@ createIcon dir pid icon = do
         Nothing -> 
             return False
 
-iconFile :: Person
-         -> FilePath
-iconFile p = printf "%08d.png" (view #id $ getRecord p)
+-- ------------------------------------------------------------
+-- Private 
+-- ------------------------------------------------------------
+
+-- | Generate path to icon file of the person.
+iconFile :: Person -- ^ Person.
+         -> FilePath -- ^ Path to icon file.
+iconFile p = printf "%08d.png" (view #id p)

@@ -41,41 +41,47 @@ import Mintz.Resource.Wechime
 import Mintz.Service.Log (createLog)
 import Debug.Trace
 
-data PublishEntry = PublishEntry { message :: String
-                                 , kind :: String
-                                 , voice :: Maybe String
-                                 , channel :: String
-                                 , persons :: [Int]
-                                 , extra :: Maybe Object
+-- | Contains values used to publish a message.
+data PublishEntry = PublishEntry { message :: String -- ^ Message text.
+                                 , kind :: String -- ^ Message kind.
+                                 , voice :: Maybe String -- ^ Voice type. Default voice is used if this is @Nothing@.
+                                 , channel :: String -- ^ Channel name.
+                                 , persons :: [Int] -- ^ Person IDs to mention in TypeTalk.
+                                 , extra :: Maybe Object -- ^ Extra values passed to Redis. This also controls several operations.
                                  } deriving (Show, Generic)
 
 instance ToJSON PublishEntry
 
-data VoicePublish = VoicePublish { audio :: String
-                                 , kind :: String
-                                 , extra :: Maybe Object
+-- | Defines format of JSON data published to Redis.
+data VoicePublish = VoicePublish { audio :: String -- ^ Audio file URL.
+                                 , kind :: String -- ^ Message kind.
+                                 , extra :: Maybe Object -- ^ Extra values which Redis clients interpret as their own way.
                                  } deriving (Eq, Show, Generic)
 
 instance ToJSON VoicePublish
 
-type PublishGraph = Graph Person'S
-
+-- | Creates audio file pronouncing a message and publish its URL to Redis.
+--
+-- In addition, this function executes
+-- - Posting a message to TypeTalk
+-- - Ringing Wechime.
+-- - Logging.
 publishMessage :: (With '[DB, REDIS, JTALK, CHATBOT, WECHIME])
-               => PublishEntry
-               -> (String -> String)
-               -> String
-               -> IO Bool
+               => PublishEntry -- ^ Object containing information of the publishing.
+               -> (String -> String) -- ^ Function converting path of generated audio file to accessible URL.
+               -> String -- ^ URL of default audio file used when the generation fails.
+               -> IO Bool -- ^ Always True.
 publishMessage (PublishEntry { message = "", .. }) _ _ = return False
 publishMessage entry@(PublishEntry { kind = kind', extra = extra', .. }) formatUrl defaultAudio = do
     accounts <- case persons of
         [] -> return []
         _ -> with @'[DB] $ do
-                graph <- selectNodes (Proxy :: Proxy PublishGraph)
-                                     (Proxy :: Proxy Person'S)
-                                     ((=@?) @Person'S "id" persons)
-                                     (orderBy @Person'S "id" ASC)
+                graph <- selectNodes (Proxy :: Proxy (Graph Person))
+                                     (Proxy :: Proxy Person)
+                                     ((=@?) @Person "id" persons)
+                                     (orderBy @Person "id" ASC)
                                      Nothing
-                return (values graph :: [Person'S])
+                return (values graph :: [Person])
 
     -- Generate audio file whose name is the hash text of the message.
     -- When the file already exists, just returns its path.
@@ -165,7 +171,7 @@ runWechime chimes = execChime chimes
 createLog' :: (With '[DB])
            => PublishEntry
            -> String
-           -> [Person'S]
+           -> [Person]
            -> IO ()
 createLog' (PublishEntry { kind = kind', .. }) hash ps = do
     now <- getCurrentTime
@@ -177,7 +183,7 @@ createLog' (PublishEntry { kind = kind', .. }) hash ps = do
                   <: #audio_hash @= hash
                   <: #published_at @= now
                   <: emptyRecord
-                   ) :: PublishLog
+                   ) :: (=+)PublishLog
     graph <- createLog pl ps
     return ()
 

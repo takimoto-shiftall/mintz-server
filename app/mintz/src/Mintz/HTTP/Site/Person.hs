@@ -103,7 +103,7 @@ create' sc form = do
             back
         Just f -> do
             (person, _) <- withContext @'[DB] sc $ do
-                createPerson (buildPerson f)
+                createPerson (buildPerson f ~/ id)
             return $ (addHeader "/site/person") $ EmptyContent
     where
         back :: Action (Headers '[Header "Location" String] Renderer)
