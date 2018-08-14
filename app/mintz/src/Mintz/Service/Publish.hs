@@ -13,6 +13,7 @@ module Mintz.Service.Publish (
 
 import GHC.Generics
 import Control.Concurrent
+import Control.Applicative
 import Control.Monad
 import Data.Proxy
 import Data.IORef
@@ -67,25 +68,15 @@ instance ToJSON VoicePublish
 -- - Posting a message to TypeTalk
 -- - Ringing Wechime.
 -- - Logging.
+--
+-- The name of audio file is the hash text of the message.
+-- When the file already exists, it is just reused.
 publishMessage :: (With '[DB, REDIS, JTALK, CHATBOT, WECHIME])
                => PublishEntry -- ^ Object containing information of the publishing.
                -> (String -> String) -- ^ Function converting path of generated audio file to accessible URL.
                -> String -- ^ URL of default audio file used when the generation fails.
-               -> IO Bool -- ^ Always True.
-publishMessage (PublishEntry { message = "", .. }) _ _ = return False
+               -> IO Bool -- ^ Denotes whether the audio is published to Redis.
 publishMessage entry@(PublishEntry { kind = kind', extra = extra', .. }) formatUrl defaultAudio = do
-    accounts <- case persons of
-        [] -> return []
-        _ -> with @'[DB] $ do
-                graph <- selectNodes (Proxy :: Proxy (Graph Person))
-                                     (Proxy :: Proxy Person)
-                                     ((=@?) @Person "id" persons)
-                                     (orderBy @Person "id" ASC)
-                                     Nothing
-                return (values graph :: [Person])
-
-    -- Generate audio file whose name is the hash text of the message.
-    -- When the file already exists, just returns its path.
     jtalk@(OpenJTalkContext jr) <- readIORef $ contextOf @JTALK ?cxt
 
     (exists, hash) <- with @'[DB] $ audioExists message voice (outDir jr)
@@ -96,42 +87,59 @@ publishMessage entry@(PublishEntry { kind = kind', extra = extra', .. }) formatU
 
     path <- with @'[JTALK] $ execMP3 voice voiceMessage hash (not exists)
 
-    -- Create log of publishing message.
-    with @'[DB] $ createLog' entry hash accounts
+    -- Fetches TypeTalk accounts and logs.
+    accounts <- with @'[DB] $ do
+        ps <- listPersons persons
+        createLog' entry hash ps
+        return $ catMaybes $ map typeTalkName ps
 
-    -- FIXME 一時的にkindで区別
-    when (not $ kind' == "speech") $ do
+    -- POST message to TypeTalk in another thread with mentioning accounts if any.
+    when (not $ isJustSpeech entry) $ do
         (TypeTalkBotContext tt) <- readIORef $ contextOf @CHATBOT ?cxt
         ttr <- newIORef tt
+        void $ forkIO $ void $ withContext @'[CHATBOT] (ttr `RCons` RNil) $ postMessage message accounts
 
-        -- POST message to TypeTalk in another thread with mentioning accounts if any.
-        forkIO $ do
-            withContext @'[CHATBOT] (ttr `RCons` RNil) $ postMessage message (catMaybes $ map typeTalkName accounts)
-            return ()
-        return ()
+    case chimesToRing entry of
+        [] -> return ()
+        chimes -> with @'[WECHIME] $ execChime chimes
 
-    case extra' >>= findWechimeParams of
-        Nothing -> do
-            -- FIXME 一時的に直書き
-            if kind' `elem` ["guest", "deliverer", "visitor"]
-                then with @'[WECHIME] $ execChime [Chime1, Chime2]
-                else return ()
-        Just chimes -> with @'[WECHIME] $ execChime chimes
-
-    -- Publish to Redis according to whether valid audio file is available.
-    if maybe True not (extra' >>= isSilent)
+    -- Publish to Redis when the audio file is generated.
+    if isSilent entry
         then do
-            let url = maybe defaultAudio formatUrl path
-
-            (RedisPubSubContext conn) <- readIORef $ contextOf @REDIS ?cxt
-            runRedis conn $ publish (fromString channel) $ BL.toStrict (encode (VoicePublish url kind' extra'))
-            return ()
-        else
             logD $ "Silent mode specified, audio is not published to redis."
+            return False
+        else do
+            case path of
+                Just p -> do
+                    let url = formatUrl p
+                    (RedisPubSubContext conn) <- readIORef $ contextOf @REDIS ?cxt
+                    void $ runRedis conn $ publish (fromString channel) $ BL.toStrict (encode (VoicePublish url kind' extra'))
+                    return True
+                Nothing -> do
+                    logD $ "Failed to generate audio file."
+                    return False
 
-    return True
+runWechime :: (With '[WECHIME])
+           => [Chime]
+           -> IO ()
+runWechime chimes = execChime chimes
 
--- TODO 行ロックが必要
+-- ----------------------------------------------------------------
+-- Sub functions used in publishMessage.
+-- ----------------------------------------------------------------
+
+listPersons :: (With '[DB])
+            => [Int]
+            -> IO [Person]
+listPersons [] = return []
+listPersons ids = do
+    graph <- selectNodes (Proxy :: Proxy (Graph Person))
+                         (Proxy :: Proxy Person)
+                         ((=@?) @Person "id" ids)
+                         (orderBy @Person "id" ASC)
+                         Nothing
+    return (values graph :: [Person])
+
 type AudioHashGraph = Graph PublishLog
 
 audioExists :: (With '[DB])
@@ -140,7 +148,6 @@ audioExists :: (With '[DB])
             -> FilePath
             -> IO (Bool, String)
 audioExists message voice dir = do
-    --let audioHash = show $ hashWith SHA1 (fromString (message ++ voice') :: B.ByteString)
     let audioHash = UTF8.toString $ B16.encode $ SHA1.hash (fromString $ message ++ voice')
 
     $(logQD) ?cxt $ "Audio hash: " ++ audioHash
@@ -161,11 +168,6 @@ audioExists message voice dir = do
         match pl = let r = getRecord pl
                    in view #message r == message && view #voice r == voice'
 
-runWechime :: (With '[WECHIME])
-           => [Chime]
-           -> IO ()
-runWechime chimes = execChime chimes
-
 createLog' :: (With '[DB])
            => PublishEntry
            -> String
@@ -185,19 +187,36 @@ createLog' (PublishEntry { kind = kind', .. }) hash ps = do
     graph <- createLog pl ps
     return ()
 
-findWechimeParams :: Object
-                  -> Maybe [Chime]
-findWechimeParams obj = case parse (flip parseField $ "wechime") obj of
-    Data.Aeson.Error e -> Nothing
-    Data.Aeson.Success cs -> Just $ concat $ map toChime cs
+-- ----------------------------------------------------------------
+-- Functions to get flags to control publishing operation.
+-- ----------------------------------------------------------------
+
+chimesToRing :: PublishEntry
+             -> [Chime]
+chimesToRing (PublishEntry { kind = kind', extra = extra' }) = maybe [] id $ byExtra <|> byKind
     where
         toChime :: Int -> [Chime]
         toChime 1 = [Chime1]
         toChime 2 = [Chime2]
         toChime _ = []
 
-isSilent :: Object
-         -> Maybe Bool
-isSilent obj = case parse (flip parseField $ "silent") obj of
-    Data.Aeson.Error e -> Nothing
-    Data.Aeson.Success b -> Just b
+        byExtra :: Maybe [Chime]
+        byExtra = extra' >>= \ex -> case parse (flip parseField $ "wechime") ex of
+            Data.Aeson.Error e -> Nothing
+            Data.Aeson.Success cs -> Just $ concat $ map toChime cs
+
+        byKind :: Maybe [Chime]
+        byKind 
+            | kind' `elem` ["guest", "deliverer", "visitor"] = Just [Chime1, Chime2]
+            | otherwise = Nothing
+
+isSilent :: PublishEntry
+         -> Bool
+isSilent (PublishEntry { extra = Just extra' }) = case parse (flip parseField $ "silent") extra' of
+    Data.Aeson.Error e -> False
+    Data.Aeson.Success b -> b
+isSilent _ = False
+
+isJustSpeech :: PublishEntry
+             -> Bool
+isJustSpeech (PublishEntry { kind = kind' }) = kind' == "speech"

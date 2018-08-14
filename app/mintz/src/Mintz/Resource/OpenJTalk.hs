@@ -8,6 +8,7 @@ import Control.Monad.Trans.Control
 import Control.Monad.Trans.Maybe
 import Control.Exception.Safe
 import Data.IORef
+import qualified Data.Char as C
 import Data.String
 import Data.Maybe (maybe)
 import qualified Data.ByteString as B
@@ -67,15 +68,17 @@ outputWave :: OpenJTalkContext
            -> String
            -> String
            -> IO (Maybe FilePath)
-outputWave c@(OpenJTalkContext jt) voice text name = do
-    let path = wavePath c name
-    let voice' = maybe defaultVoiceFile id voice
-    ec <- withCreateProcess (proc "open_jtalk" (openJTalkArgs c voice' path)) { std_in = CreatePipe } $ \(Just inh) _ _ ph -> do
-        let text' = B.pack (UTF8.encode text)
-        hSetBuffering inh NoBuffering
-        C8.hPutStrLn inh text'
-        waitForProcess ph
-    return $ if ec == ExitSuccess then Just path else Nothing
+outputWave c@(OpenJTalkContext jt) voice text name
+    | isPronounceable text = do
+        let path = wavePath c name
+        let voice' = maybe defaultVoiceFile id voice
+        ec <- withCreateProcess (proc "open_jtalk" (openJTalkArgs c voice' path)) { std_in = CreatePipe } $ \(Just inh) _ _ ph -> do
+            let text' = B.pack (UTF8.encode text)
+            hSetBuffering inh NoBuffering
+            C8.hPutStrLn inh text'
+            waitForProcess ph
+        return $ if ec == ExitSuccess then Just path else Nothing
+    | otherwise = return Nothing
 
 waveToMP3 :: FilePath
           -> IO (Maybe FilePath)
@@ -126,3 +129,10 @@ execMP3 voice text name overwrite = do
         else do
             logCD ?cxt "File already exists. Sound generation is skipped"
             return $ Just output
+
+isPronounceable :: String
+                -> Bool
+isPronounceable text = any pronounceable text
+    where
+        pronounceable :: Char -> Bool
+        pronounceable c = and $ map ($ c) $ map (not .) [C.isControl, C.isSpace]
