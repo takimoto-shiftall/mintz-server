@@ -9,6 +9,8 @@ module Mintz.Service.Publish (
     PublishEntry(..)
   , publishMessage
   , runWechime
+  , publishSound
+  , removeSound
 ) where
 
 import GHC.Generics
@@ -28,7 +30,9 @@ import Data.Aeson
 import Data.Aeson.Types
 import qualified Crypto.Hash.SHA1 as SHA1
 import qualified Data.ByteString.Base16 as B16
-import Control.Lens hiding ((:>))
+import System.Directory
+import System.FilePath ((</>), (<.>))
+import Control.Lens hiding ((:>), (<.>))
 import Data.Extensible
 import Database.Redis
 import Data.Model.Graph
@@ -124,6 +128,26 @@ runWechime :: (With '[WECHIME])
            -> IO ()
 runWechime chimes = execChime chimes
 
+publishSound :: (With '[REDIS])
+             => FilePath
+             -> String
+             -> (String -> String)
+             -> BL.ByteString
+             -> IO ()
+publishSound dir name formatUrl sound = do
+    let path = dir </> name <.> "mp3"
+    BL.writeFile path sound
+    let url = formatUrl path
+    -- TODO: What channel and kind to use?
+    publishRedis' "mintz" "sound" Nothing url
+
+removeSound :: FilePath
+            -> String
+            -> IO ()
+removeSound dir name = do
+    let path = dir </> name <.> "mp3"
+    doesPathExist path >>= flip when (removeFile path)
+
 -- ----------------------------------------------------------------
 -- Sub functions used in publishMessage.
 -- ----------------------------------------------------------------
@@ -186,6 +210,16 @@ createLog' (PublishEntry { kind = kind', .. }) hash ps = do
                    ) :: (=+)PublishLog
     graph <- createLog pl ps
     return ()
+
+publishRedis' :: (With '[REDIS])
+              => String
+              -> String
+              -> Maybe Object
+              -> String
+              -> IO ()
+publishRedis' channel kind' extra' url = do
+    (RedisPubSubContext conn) <- readIORef $ contextOf @REDIS ?cxt
+    void $ runRedis conn $ publish (fromString channel) $ BL.toStrict (encode (VoicePublish url kind' extra'))
 
 -- ----------------------------------------------------------------
 -- Functions to get flags to control publishing operation.

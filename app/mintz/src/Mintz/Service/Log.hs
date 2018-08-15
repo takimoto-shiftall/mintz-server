@@ -34,3 +34,21 @@ createLog log persons = do
             cpc -*< lc
             cpc -*< pc
     restoreGraph graph
+
+type AudioHash = ExtraModel '["audio_hash" :> String] '[]
+
+fetchOldHashes :: (With '[DB])
+               => Integer
+               -> IO [String]
+fetchOldHashes c
+    | c <= 0    = return []
+    | otherwise = do
+        g <- selectQuery (Proxy :: Proxy (Graph AudioHash))
+                         (Proxy :: Proxy '[AudioHash])
+                         "SELECT audio_hash \
+                         \FROM publish_log \
+                         \GROUP BY audio_hash \
+                         \ORDER BY MAX(published_at) DESC \
+                         \LIMIT ? OFFSET 0"
+                         (holderValues c)
+        return $ map (view #audio_hash) (values g :: [AudioHash])

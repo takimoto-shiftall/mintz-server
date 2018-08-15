@@ -5,6 +5,7 @@ database:
 link:
   icon_dir: public/icon
   icon_url: http://localhost:8001/
+  sound_dir: public/sound
   audio_url: http://localhost:8001/
   default_icon: http://localhost:8001/public/icon/default.png
   default_audio: http://localhost:8001/public/voice/default.mp3

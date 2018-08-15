@@ -13,6 +13,7 @@ import qualified Data.Map as M
 import Data.Maybe (maybe)
 import qualified Data.Char as C
 import Data.Proxy
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.UTF8 as UTF8
 import Servant.API
 import Servant.Server
@@ -35,7 +36,7 @@ import Mintz.HTTP.API.Types
 -- Data types.
 -- ----------------------------------------------------------------
 
-type PublishMessage = String :? '[Length String 1 1024, MessageFormatter]
+type PublishMessage = String :? '[MessageFormatter, Length String 1 1024]
 
 data MessageFormatter
 
@@ -82,11 +83,23 @@ type PublishAPI = "publish" :>
                 ( Use LinkSettings
                     :> Use (M.Map String VoiceProperties)
                     :> ReqBody '[JSON] PublishForm' :> Post '[JSON] NoContent
-             :<|> "wechime" :> ReqBody '[JSON] WechimeForm' :> Post '[JSON] NoContent
+             :<|> "wechime"
+                    :> ReqBody '[JSON] WechimeForm' :> Post '[JSON] NoContent
+             :<|> "sound"
+                    :> Use LinkSettings
+                    :> Capture "name" String
+                    :> (
+                        ReqBody '[OctetStream] BL.ByteString :> Post '[JSON] NoContent
+                   :<|> Delete '[JSON] NoContent
+                    )
                 )
 
 publishAPI sc = publish' sc
            :<|> wechime' sc
+           :<|> soundAPI
+    where
+        soundAPI ls n = publishSound' sc ls n
+                   :<|> deleteSound' sc ls n
 
 -- ----------------------------------------------------------------
 -- Handlers
@@ -134,3 +147,22 @@ wechime' sc form = do
         toChime 1 = [Chime1]
         toChime 2 = [Chime2]
         toChime _ = []
+
+publishSound' :: SiteContext
+              -> LinkSettings
+              -> String
+              -> BL.ByteString
+              -> Action NoContent
+publishSound' sc ls name sound = do
+    let formatter = \p -> audio_url ls ++ p
+    withContext @'[REDIS] sc $ do
+        publishSound (sound_dir ls) name formatter sound
+    return NoContent
+
+deleteSound' :: SiteContext
+             -> LinkSettings
+             -> String
+             -> Action NoContent
+deleteSound' sc ls name = do
+    removeSound (sound_dir ls) name
+    return NoContent

@@ -50,6 +50,7 @@ data DatabaseSettings = DatabaseSettings {
 data LinkSettings = LinkSettings {
       icon_dir :: String
     , icon_url :: String
+    , sound_dir :: String
     , audio_url :: String
     , default_icon :: String
     , default_audio :: String
