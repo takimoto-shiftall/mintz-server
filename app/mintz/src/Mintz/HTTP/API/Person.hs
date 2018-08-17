@@ -111,7 +111,7 @@ detail' :: SiteContext
         -> Maybe String
         -> Action (Singular "person" PersonItem)
 detail' sc link pid lang = do
-    (person, _) <- withContext @'[DB] sc $ do
+    person <- withContext' @'[DB] sc $ do
         getPerson pid
     case person of
         Nothing -> throw err404

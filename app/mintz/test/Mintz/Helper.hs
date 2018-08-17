@@ -112,4 +112,4 @@ compareOne :: forall r ts us t db. (WithDB db, RecordWrapper r, ElemIndexes ts '
            -> LimitOffset -- ^ Range of records.
            -> (r -> r -> t -> IO ()) -- ^ Checking operation.
            -> Writer [PreSaveIO' t] () -- ^ @Writer@ accumelating @PreSaveIO@.
-compareOne conds sorts lo f = compare conds sorts lo $ \bs as t -> f (bs !! 0) (as !! 0) t
+compareOne conds sorts lo f = Mintz.Helper.compare conds sorts lo $ \bs as t -> f (bs !! 0) (as !! 0) t

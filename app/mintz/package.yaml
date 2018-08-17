@@ -120,3 +120,4 @@ tests:
     dependencies:
     - mintz
     - hspec
+    - hspec-wai
