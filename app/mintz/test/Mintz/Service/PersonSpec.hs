@@ -1,9 +1,12 @@
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Mintz.Service.PersonSpec where
 
 import Test.Hspec
 import Data.IORef
+import Control.Monad.Trans.Class
+import Control.Monad.Reader
 import Control.Lens
 import Data.Extensible
 import Data.Resource
@@ -11,10 +14,11 @@ import Data.Model.Graph
 import Database.ORM
 import Mintz.Model.Types
 import Mintz.Model.Models
-import Mintz.Settings
 import Mintz.Service.Person
 import Mintz.Hspec.IO
+import Mintz.Hspec.Expectations
 import Mintz.Hspec.Database
+import Mintz.Hspec.Settings (db, DB)
 
 type PersonGraph = Graph Person
 
@@ -38,5 +42,9 @@ spec = do
                                    ) :: (=+)Person
                 createPerson person
                 `runPrecedable` do
-                    inc @Person (..?) 1
-                    new1 @Person $ \p -> (p ~/ shrink :: Person :^- '["display_order"])
+                    new1 @Person $ \p -> do
+                        shouldBeAs @(Person :^- '["display_order"]) p
+                        order <- asks $ view #display_order
+                        liftIO $ order `shouldBe` 3
+
+

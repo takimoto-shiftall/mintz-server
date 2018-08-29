@@ -21,9 +21,21 @@ services:
       - mintz_db:/var/lib/postgresql/data/mintz
       - ./db/initdb.d:/docker-entrypoint-initdb.d
     container_name: mintz_db
+  db:
+    image: postgres:10
+    ports:
+      - 15433:5432
+    environment:
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/mintz
+    volumes:
+      - mintz_db_test:/var/lib/postgresql/data/mintz
+      - ./db/initdb.d:/docker-entrypoint-initdb.d
+    container_name: mintz_db_test
   redis:
     image: redis:latest
     ports:
       - 6379:6379
 volumes:
   mintz_db:
+  mintz_db_test:
