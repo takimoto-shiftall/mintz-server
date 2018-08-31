@@ -33,7 +33,9 @@ import Mintz.Resource.OpenJTalk
 import Mintz.Resource.TypeTalk
 import Mintz.Resource.Wechime
 
-type ResourceAPI = (@>) '[DBResource Database, RedisPubSub, OpenJTalk, TypeTalkBot, Wechime, LoggingResource] SiteKeys
+type ResourceTypes = '[DBResource Database, RedisPubSub, OpenJTalk, TypeTalkBot, Wechime, LoggingResource]
+
+type ResourceAPI = (@>) ResourceTypes SiteKeys
                     :> ( "site"
                         :> ( PersonSite
                            )
@@ -54,13 +56,9 @@ resourceServer sc = personSite sc
                  :<|> voiceAPI sc
                     )
 
-app :: IO Application
-app = do
-    s' <- decodeFileEither @AppSettings "config/develop.yml"
-    settings <- case s' of 
-        Right s -> return s
-        Left e -> throw e
-
+makeResources :: AppSettings
+              -> IO (Resources (Refs ResourceTypes))
+makeResources settings = do
     lr <- newLoggingResource [(anyTag, LevelDebug, LogStdout defaultBufSize, Nothing)] >>= newIORef
     rr <- newIORef $ RedisPubSub (defaultConnectInfo { connectHost = "127.0.0.1", connectPort = PortNumber 6379 })
     tr <- newIORef $ openJTalk settings
@@ -69,15 +67,20 @@ app = do
           in initWechime gpio_dir gpio_chime1 gpio_chime2 gpio_chime12
     dr <- newResource $ let dbs = database settings in Database (PostgreSQL (dsn dbs) (max_connections dbs)) 
 
-    let resources = dr `RCons` rr `RCons` tr `RCons` br `RCons` wr `RCons` lr `RCons` RNil
+    return $ dr `RCons` rr `RCons` tr `RCons` br `RCons` wr `RCons` lr `RCons` RNil
 
-    let contextTypes = Proxy :: Proxy '[ RequestContextEntry SiteKeys '[ DBResource Database
-                                                                       , RedisPubSub
-                                                                       , OpenJTalk
-                                                                       , TypeTalkBot
-                                                                       , Wechime
-                                                                       , LoggingResource
-                                                                       ]
+app :: FilePath ->
+    -> (AppSettings -> IO (Resources (Refs ResourceTypes)))
+    -> IO Application
+app config res = do
+    s' <- decodeFileEither @AppSettings config
+    settings <- case s' of 
+        Right s -> return s
+        Left e -> throw e
+
+    resources <- res settings
+
+    let contextTypes = Proxy :: Proxy '[ RequestContextEntry SiteKeys ResourceTypes
                                        , LinkSettings
                                        , CrossDomainOrigin
                                        , M.Map String VoiceProperties
