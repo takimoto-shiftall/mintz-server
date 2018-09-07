@@ -69,7 +69,7 @@ makeResources settings = do
 
     return $ dr `RCons` rr `RCons` tr `RCons` br `RCons` wr `RCons` lr `RCons` RNil
 
-app :: FilePath ->
+app :: FilePath
     -> (AppSettings -> IO (Resources (Refs ResourceTypes)))
     -> IO Application
 app config res = do

@@ -67,7 +67,7 @@ subscribe :: (With '[SubscriptionContext], WebSocketsData a)
           -> IO (MVar SubscriptionStatus, IO ())
 subscribe cred f pong = do
     let pong' = with @'[SubscriptionContext] pong
-    withSocketsDo $ runWithTLS "typetalk.com"
+    withSocketsDo $ runWithTLS "message.typetalk.com"
                                "/api/v1/streaming"
                                443
                                [ ("Authorization", fromString $ "Bearer " ++ access_token cred) ]
