@@ -42,11 +42,14 @@ packages:
 extra-deps:
 - servant-options-0.1.0.0
 - HDBC-postgresql-2.3.2.5
+- yaml-0.10.1
 - hs-orm/hs-graph
 - hs-orm
 - hs-ext-servant/hs-resource
 - hs-ext-servant/hs-template
+- hs-ext-servant/hs-validation
 - hs-ext-servant
+- hs-config
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

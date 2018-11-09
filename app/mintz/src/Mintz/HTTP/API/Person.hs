@@ -21,10 +21,8 @@ import Control.Lens hiding ((:>))
 import Data.Extensible hiding (Action)
 import Data.Resource
 import Database.ORM
-import Ext.Servant.Action
-import Ext.Servant.Context
-import Ext.Servant.Validation
-import Ext.Servant.Combinators
+import Ext.Servant
+import Data.Validation
 import Mintz.Settings
 import Mintz.Model.Models
 import Mintz.Model.Types

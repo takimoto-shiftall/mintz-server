@@ -24,10 +24,9 @@ import Web.FormUrlEncoded
 import Data.Resource
 import Ext.Servant.Action
 import Ext.Servant.Context
-import Mintz.Settings
-import Ext.Servant.Context
-import Ext.Servant.Validation
-import Ext.Servant.Verifiers
+import Mintz.Settings hiding (wechime')
+import Ext.Servant
+import Data.Validation
 import Mintz.Service.Publish
 import Mintz.Resource.Wechime
 import Mintz.HTTP.API.Types

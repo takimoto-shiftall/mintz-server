@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Main where
 
@@ -30,9 +31,14 @@ import Text.Parsec
 import Network.HTTP.Conduit
 import Network.HTTP.Simple
 import qualified Network.HTTP.Client as H
+import Text.Pretty.Simple
 import Data.Resource
+import Data.Config
+import Data.Validation
 import Mintz.Resource.TypeTalk.Auth
 import Mintz.Resource.TypeTalk.Subscribe
+
+$(yamlConfiguration "config/daemon-default.yml" "Settings" [])
 
 defaultMaximumLength = 40 :: Int
 
@@ -51,26 +57,17 @@ data WechimeForm = WechimeForm { chimes :: [Int]
 
 instance ToJSON WechimeForm
 
-data SubscriptionSettings = SubscriptionSettings { publish_url :: String
-                                                 , wechime_url :: String
-                                                 , client_id :: String
-                                                 , client_secret :: String
-                                                 , topics :: [Int]
-                                                 , speech_key :: String
-                                                 , silent_key :: String
-                                                 , wechime_key :: String
-                                                 , voice_keys :: M.Map String String
-                                                 , jingle_keys :: M.Map String String
-                                                 , maximum_length :: Maybe Int
-                                                 } deriving (Generic)
-
-instance FromJSON SubscriptionSettings
-
 main :: IO ()
 main = do
-    print "mintz-daemon has launched..."
+    settings <- loadYamlFile @Settings' "config/daemon-develop.yml" >>= \s' -> do
+        case s' of
+            Left s -> do
+                forM_ (errorsOf s) print
+                fail "Invalid configuration file"
+            Right s -> return s
 
-    settings <- decodeFileEither "config/daemon-develop.yml" >>= either throw return
+    putStrLn "mintz-daemon has launched with..."
+    pPrint settings
 
     lr <- newLoggingResource [(anyTag, LevelDebug, LogStdout defaultBufSize, Nothing)] >>= newIORef
     tr <- newIORef $ TypeTalkSubscription (client_id settings) (client_secret settings)
@@ -99,7 +96,7 @@ main = do
 
     readMVar status >>= print
 
-    print "shutdown mintz-daemon"
+    putStrLn "shutdown mintz-daemon"
 
 publishMessage :: (With '[SubscriptionContext])
                => String
@@ -120,11 +117,11 @@ publishMessage url body = do
     logD $ "Response was received from mintz-server:"
     logD $ show (getResponseStatus res)
 
-makeRequest :: SubscriptionSettings
+makeRequest :: Settings
             -> SubscriptionMessage
             -> Maybe (String, BL.ByteString)
 makeRequest settings (PostMessage _ p)
-    | view #topicId p `elem` topics settings = 
+    | toInteger (view #topicId p) `elem` topics settings = 
         case runParser parseMessage [] "" (view #message p) of
             Left e -> Nothing
             Right (msg, keys) -> getFirst $ mconcat $ map First [ encodeBody <$> toPublishForm settings msg keys
@@ -136,7 +133,7 @@ makeRequest settings (PostMessage _ p)
         encodeBody (url, v) = (url, encode v)
 makeRequest _ _ = Nothing
 
-toPublishForm :: SubscriptionSettings
+toPublishForm :: Settings
               -> String
               -> [String]
               -> Maybe (String, PublishForm)
@@ -153,7 +150,7 @@ toPublishForm settings msg keys
             else Nothing
     | otherwise = Nothing
     where
-        maxlen = maybe defaultMaximumLength id (maximum_length settings)
+        maxlen = maybe defaultMaximumLength id (fromInteger <$> maximum_length settings)
         jingle = L.find (`M.member` jingle_keys settings) keys >>= (jingle_keys settings M.!?)
         voice' = getFirst $ mconcat $ map (First . (voice_keys settings M.!?)) keys
         extra' = Just $ HM.fromList
@@ -162,7 +159,7 @@ toPublishForm settings msg keys
                                   , jingle >>= return . ("jingle",) . String . T.pack
                                   ]
 
-toWechimeForm :: SubscriptionSettings
+toWechimeForm :: Settings
               -> String
               -> [String]
               -> Maybe (String, WechimeForm)

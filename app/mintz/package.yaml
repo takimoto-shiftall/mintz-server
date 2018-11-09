@@ -54,7 +54,7 @@ dependencies:
   - extensible
   - monad-logger
   - fast-logger
-  - yaml
+  - yaml >= 0.9.0
   - vault
   - convertible
   - hedis
@@ -68,9 +68,12 @@ dependencies:
   - hs-resource
   - hs-orm
   - hs-template
+  - hs-validation
   - hs-ext-servant
+  - hs-config
   - cryptohash-sha1
   - base16-bytestring
+  - pretty-simple
 
 default-extensions:
   - DataKinds

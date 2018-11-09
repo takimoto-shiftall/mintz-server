@@ -4,3 +4,6 @@
 [submodule "app/mintz/hs-orm"]
 	path = app/mintz/hs-orm
 	url = https://github.com/sozu/hs-orm.git
+[submodule "app/mintz/hs-config"]
+	path = app/mintz/hs-config
+	url = https://github.com/sozu/hs-config.git

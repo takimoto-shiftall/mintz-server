@@ -7,8 +7,8 @@ topics:
 speech_key: speech_balloon
 silent_key: thought_balloon
 wechime_key: japanese_goblin
-voice_keys:
+voice_keys: !!map
   angry: "mei_angry"
-jingle_keys:
+jingle_keys: !!map
   bell: "bell01"
-maximum_length: 40
+maximum_length: !!null 40

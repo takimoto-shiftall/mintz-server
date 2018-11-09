@@ -14,9 +14,8 @@ import qualified Data.ByteString.Lazy.UTF8 as UTF8
 import Servant.API
 import Servant.Server
 import Data.Aeson
-import Ext.Servant.Action
-import Ext.Servant.Context
-import Ext.Servant.Validation
+import Ext.Servant
+import Data.Validation
 import Mintz.Settings
 
 type VoiceAPI = "voice" :> Use (M.Map String VoiceProperties) :>

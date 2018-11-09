@@ -29,7 +29,8 @@ import Mintz.Model.Models
 import Mintz.Model.Types
 import Mintz.Service.Person
 import Mintz.Settings
-import Ext.Servant.Validation
+import Ext.Servant
+import Data.Validation
 
 {-# ANN module (Hide "Data.ByteString.Lazy.UTF8") #-}
 

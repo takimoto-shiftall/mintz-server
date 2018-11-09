@@ -21,13 +21,13 @@ open_jtalk:
   dict_dir: path to directory of dictionaries
   voice_dir: path to directory of voices
   out_dir: path to directory to output audio relative to application root
-  voices:
-    voice_key:
+  voices: !!map
+    voiceProperty:
       path: path to voice file under voice_dir
       description: text explaining the feature of the voice
 
 wechime:
   gpio_dir: path to directory of GPIO virtual files
-  gpio_chime1: the number of GPIO for wechime1
-  gpio_chime2: the number of GPIO for wechime2
-  gpio_chime12: the number of GPIO for wechime1 and wechime2
+  gpio_chime1: 5
+  gpio_chime2: 6
+  gpio_chime12: 13

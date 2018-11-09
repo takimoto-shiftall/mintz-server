@@ -13,8 +13,8 @@ import qualified Data.Text as T
 import Network.HTTP.Media
 import Servant.API
 import Servant.Server
-import Ext.Servant.Context
-import Ext.Servant.Validation
+import Data.Validation
+import Ext.Servant
 
 data Singular (key :: Symbol) a = Singular a
 
