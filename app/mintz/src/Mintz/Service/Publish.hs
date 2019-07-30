@@ -162,7 +162,7 @@ listPersons ids = do
                          ((=@?) @Person "id" ids)
                          (orderBy @Person "id" ASC)
                          Nothing
-    return (values graph :: [Person])
+    return (valuesOf graph :: [Person])
 
 type AudioHashGraph = Graph PublishLog
 
@@ -182,9 +182,9 @@ audioExists message voice dir = do
                          (orderBy @PublishLog "id" DESC)
                          (Just (1, 0))
 
-    $(logQD) ?cxt $ "Got record matching hash: " ++ show (length (values graph :: [PublishLog]))
+    $(logQD) ?cxt $ "Got record matching hash: " ++ show (length (valuesOf graph :: [PublishLog]))
 
-    return (any match (values graph :: [PublishLog]), audioHash)
+    return (any match (valuesOf graph :: [PublishLog]), audioHash)
     where
         voice' = maybe "" id voice
 

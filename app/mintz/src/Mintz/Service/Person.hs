@@ -30,7 +30,7 @@ listPersons limit offset = do
                          (..?)
                          (orderBy @Person "display_order" ASC)
                          (Just (limit, offset))
-    return $ values graph
+    return $ valuesOf graph
 
 -- | Returns a person of specified ID if exists.
 getPerson :: (With '[DB])

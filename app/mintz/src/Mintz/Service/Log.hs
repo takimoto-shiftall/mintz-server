@@ -51,4 +51,4 @@ fetchOldHashes c
                          \ORDER BY MAX(published_at) DESC \
                          \LIMIT ? OFFSET 0"
                          (holderValues c)
-        return $ map (view #audio_hash) (values g :: [AudioHash])
+        return $ map (view #audio_hash) (valuesOf g :: [AudioHash])

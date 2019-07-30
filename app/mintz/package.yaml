@@ -85,6 +85,7 @@ default-extensions:
   - TypeApplications
   - MultiParamTypeClasses
   - ImplicitParams
+  - ScopedTypeVariables
 
 library:
   source-dirs: src
@@ -98,6 +99,7 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     - -ddump-splices
+    - -fomit-interface-pragmas
     dependencies:
     - mintz
 
@@ -109,6 +111,7 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     - -ddump-splices
+    - -fomit-interface-pragmas
     dependencies:
     - mintz
 
@@ -120,6 +123,7 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -fomit-interface-pragmas
     dependencies:
     - mintz
     - hspec
